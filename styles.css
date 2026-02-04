@@ -1,8 +1,29 @@
-/*
+/* ArchivistBot Plugin Styles */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+/* Archive button (for future inline button feature) */
+.archivistbot-archive-btn {
+	cursor: pointer;
+	padding: 4px 12px;
+	border-radius: 4px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	transition: background 0.15s ease;
+}
 
-If your plugin does not need CSS, delete this file.
+.archivistbot-archive-btn:hover {
+	background: var(--background-modifier-hover);
+}
 
-*/
+/* Container for actions (for future inline button feature) */
+.archivistbot-actions {
+	margin-top: 8px;
+	padding: 8px 0;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+/* Archive modal button spacing */
+.archivistbot-archive-btn.is-cta {
+	margin-bottom: 4px;
+}

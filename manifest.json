@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.0",
-	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"id": "archivistbot",
+	"name": "ArchivistBot",
+	"version": "0.1.0",
+	"minAppVersion": "1.5.0",
+	"description": "Sync voice notes from ArchivistBot to your vault with auto-categorization",
+	"author": "TywinLanni",
+	"authorUrl": "https://github.com/TywinLanni",
 	"isDesktopOnly": false
 }

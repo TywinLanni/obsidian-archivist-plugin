@@ -1,99 +1,167 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+// src/main.ts
+import { Plugin, Notice, TFile } from "obsidian";
+import {
+	ArchivistBotSettings,
+	DEFAULT_SETTINGS,
+	ArchivistBotSettingTab,
+} from "./settings";
+import { ArchivistApiClient } from "./api-client";
+import { NoteWriter } from "./note-writer";
+import { SyncEngine } from "./sync-engine";
+import { NoteArchiver } from "./archiver";
 
-// Remember to rename these classes and interfaces!
+export default class ArchivistBotPlugin extends Plugin {
+	settings: ArchivistBotSettings = DEFAULT_SETTINGS;
+	private client!: ArchivistApiClient;
+	private writer!: NoteWriter;
+	private syncEngine!: SyncEngine;
+	private archiver!: NoteArchiver;
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
-
-	async onload() {
+	async onload(): Promise<void> {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
+		this.client = new ArchivistApiClient(() => this.settings);
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
+		this.writer = new NoteWriter(
+			this.app.vault,
+			this.settings.vaultBasePath
+		);
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
+		this.syncEngine = new SyncEngine(
+			this.client,
+			this.writer,
+			(id) => this.registerInterval(id)
+		);
+
+		this.archiver = new NoteArchiver(
+			this.app,
+			this.settings.vaultBasePath
+		);
+
+		// ── Settings Tab ──
+		this.addSettingTab(new ArchivistBotSettingTab(this.app, this));
+
+		// ── Ribbon Icon: Manual Sync ──
+		this.addRibbonIcon("refresh-cw", "Sync now", async () => {
+			try {
+				await this.syncEngine.manualSync();
+			} catch {
+				// Error already shown by manualSync
 			}
 		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
+		// ── Commands ──
+
+		// Manual sync
+		this.addCommand({
+			id: "sync-now",
+			name: "Sync notes now",
+			callback: async () => {
+				try {
+					await this.syncEngine.manualSync();
+				} catch {
+					// Error already shown by manualSync
 				}
-				return false;
-			}
+			},
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
+		// Health check
+		this.addCommand({
+			id: "health-check",
+			name: "Check server connection",
+			callback: async () => {
+				try {
+					const h = await this.client.health();
+					new Notice(`ArchivistBot: Server OK (v${h.version})`);
+				} catch (e) {
+					new Notice(`ArchivistBot: Server unreachable - ${String(e)}`);
+				}
+			},
 		});
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		// Archive note
+		this.addCommand({
+			id: "archive-note",
+			name: "Archive note",
+			checkCallback: (checking: boolean) => {
+				const file = this.app.workspace.getActiveFile();
+				if (!file) {
+					return false;
+				}
+				if (!this.archiver.canArchive(file)) {
+					return false;
+				}
 
+				if (!checking) {
+					void this.archiver.archive(file);
+				}
+				return true;
+			},
+		});
+
+		// ── Context Menu: Archive ──
+		this.registerEvent(
+			this.app.workspace.on("file-menu", (menu, file) => {
+				if (!(file instanceof TFile)) {
+					return;
+				}
+				if (!this.archiver.canArchive(file)) {
+					return;
+				}
+
+				menu.addItem((item) =>
+					item
+						.setTitle("Archive (archivistbot)")
+						.setIcon("archive")
+						.onClick(() => void this.archiver.archive(file))
+				);
+			})
+		);
+
+		// ── Auto Sync ──
+		if (this.settings.autoSync) {
+			// Wait for layout ready, then start
+			this.app.workspace.onLayoutReady(() => {
+				this.startSync();
+			});
+		}
+
+		// ── Status Bar ──
+		const statusBarEl = this.addStatusBarItem();
+		statusBarEl.setText("Archivistbot");
 	}
 
-	onunload() {
+	onunload(): void {
+		this.syncEngine.stop();
 	}
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
+	startSync(): void {
+		this.syncEngine.start(this.settings.syncIntervalSec);
 	}
 
-	async saveSettings() {
+	stopSync(): void {
+		this.syncEngine.stop();
+	}
+
+	restartSync(): void {
+		if (this.settings.autoSync) {
+			this.stopSync();
+			this.startSync();
+		}
+	}
+
+	async loadSettings(): Promise<void> {
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			await this.loadData() as Partial<ArchivistBotSettings>
+		);
+	}
+
+	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+		// Update writer's and archiver's base path when settings change
+		this.writer.setBasePath(this.settings.vaultBasePath);
+		this.archiver.setBasePath(this.settings.vaultBasePath);
 	}
 }
