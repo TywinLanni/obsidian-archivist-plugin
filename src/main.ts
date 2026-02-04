@@ -9,6 +9,7 @@ import { ArchivistApiClient } from "./api-client";
 import { NoteWriter } from "./note-writer";
 import { SyncEngine } from "./sync-engine";
 import { NoteArchiver } from "./archiver";
+import { ConfigSync } from "./config-sync";
 
 export default class ArchivistBotPlugin extends Plugin {
 	settings: ArchivistBotSettings = DEFAULT_SETTINGS;
@@ -16,6 +17,8 @@ export default class ArchivistBotPlugin extends Plugin {
 	private writer!: NoteWriter;
 	private syncEngine!: SyncEngine;
 	private archiver!: NoteArchiver;
+	private configSync!: ConfigSync;
+	private statusBarEl!: HTMLElement;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -38,6 +41,21 @@ export default class ArchivistBotPlugin extends Plugin {
 			this.settings.vaultBasePath
 		);
 
+		this.configSync = new ConfigSync(
+			this.app.vault,
+			this.client,
+			this.settings.vaultBasePath
+		);
+
+		// ── Status Bar ──
+		this.statusBarEl = this.addStatusBarItem();
+		this.updateStatusBar();
+
+		// Update status bar when config sync status changes
+		this.configSync.setStatusCallback(() => {
+			this.updateStatusBar();
+		});
+
 		// ── Settings Tab ──
 		this.addSettingTab(new ArchivistBotSettingTab(this.app, this));
 
@@ -52,7 +70,7 @@ export default class ArchivistBotPlugin extends Plugin {
 
 		// ── Commands ──
 
-		// Manual sync
+		// Manual sync notes
 		this.addCommand({
 			id: "sync-now",
 			name: "Sync notes now",
@@ -65,6 +83,19 @@ export default class ArchivistBotPlugin extends Plugin {
 			},
 		});
 
+		// Sync config (categories + tags)
+		this.addCommand({
+			id: "sync-config",
+			name: "Sync categories and tags",
+			callback: async () => {
+				try {
+					await this.configSync.manualSync();
+				} catch {
+					// Error already shown
+				}
+			},
+		});
+
 		// Health check
 		this.addCommand({
 			id: "health-check",
@@ -72,9 +103,9 @@ export default class ArchivistBotPlugin extends Plugin {
 			callback: async () => {
 				try {
 					const h = await this.client.health();
-					new Notice(`ArchivistBot: Server OK (v${h.version})`);
+					new Notice(`Server ok (v${h.version})`);
 				} catch (e) {
-					new Notice(`ArchivistBot: Server unreachable - ${String(e)}`);
+					new Notice(`Server unreachable - ${String(e)}`);
 				}
 			},
 		});
@@ -118,21 +149,31 @@ export default class ArchivistBotPlugin extends Plugin {
 			})
 		);
 
-		// ── Auto Sync ──
-		if (this.settings.autoSync) {
-			// Wait for layout ready, then start
-			this.app.workspace.onLayoutReady(() => {
-				this.startSync();
-			});
-		}
+		// ── Initialize on Layout Ready ──
+		this.app.workspace.onLayoutReady(() => {
+			// Initialize config sync (creates files, pulls from server)
+			void this.configSync.initialize();
 
-		// ── Status Bar ──
-		const statusBarEl = this.addStatusBarItem();
-		statusBarEl.setText("Archivistbot");
+			// Start file watcher for categories.md and tags_registry.md
+			this.configSync.startWatching((ref) => this.registerEvent(ref));
+
+			// Start auto sync if enabled
+			if (this.settings.autoSync) {
+				this.startSync();
+			}
+		});
 	}
 
 	onunload(): void {
 		this.syncEngine.stop();
+	}
+
+	/**
+	 * Update status bar with sync status.
+	 */
+	private updateStatusBar(): void {
+		const emoji = this.configSync.getStatusEmoji();
+		this.statusBarEl.setText(`${emoji} Archivistbot`);
 	}
 
 	startSync(): void {
@@ -160,8 +201,9 @@ export default class ArchivistBotPlugin extends Plugin {
 
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
-		// Update writer's and archiver's base path when settings change
+		// Update all components with new base path
 		this.writer.setBasePath(this.settings.vaultBasePath);
 		this.archiver.setBasePath(this.settings.vaultBasePath);
+		this.configSync.setBasePath(this.settings.vaultBasePath);
 	}
 }

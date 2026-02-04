@@ -53,7 +53,9 @@ export class SyncEngine {
 		this.syncing = true;
 
 		try {
-			const notes = await this.client.fetchUnsynced();
+			const response = await this.client.fetchUnsynced();
+			const notes = response.notes;
+
 			if (notes.length === 0) {
 				return;
 			}
@@ -74,7 +76,7 @@ export class SyncEngine {
 			}
 
 			if (written.length > 0) {
-				new Notice(`ArchivistBot: synced ${written.length} note(s)`);
+				new Notice(`Archivistbot: synced ${written.length} note(s)`);
 			}
 		} catch (e) {
 			console.error("[ArchivistBot] sync error:", e);
@@ -98,7 +100,7 @@ export class SyncEngine {
 			// If no notes were synced, show a message
 			// (sync() already shows notice if notes were written)
 		} catch (e) {
-			new Notice(`ArchivistBot: sync failed - ${String(e)}`);
+			new Notice(`Archivistbot: sync failed - ${String(e)}`);
 			throw e;
 		}
 	}

@@ -3,15 +3,18 @@
 
 export interface NoteResponse {
 	id: string;
-	title: string;
+	name: string;
 	content: string;           // raw transcript
-	markdown: string;          // ready .md with frontmatter
 	category: string;
-	subcategory: string | null;
 	tags: string[];
 	summary: string;
 	created_at: string;        // ISO datetime
-	source: string;            // "telegram"
+	synced_at: string | null;
+}
+
+export interface SyncResponse {
+	notes: NoteResponse[];
+	server_time: string;
 }
 
 export interface HealthResponse {
@@ -20,9 +23,38 @@ export interface HealthResponse {
 }
 
 export interface MarkSyncedRequest {
-	ids: string[];
+	note_ids: string[];
 }
 
 export interface MarkSyncedResponse {
-	synced: number;
+	synced_count: number;
+}
+
+// Categories API
+
+export interface CategoryItem {
+	name: string;
+	description: string;
+}
+
+export interface CategoriesResponse {
+	categories: CategoryItem[];
+	updated_at: string;
+}
+
+export interface CategoriesUpdateRequest {
+	categories: CategoryItem[];
+}
+
+// Tags API
+
+export type TagsRegistry = Record<string, Record<string, number>>;
+
+export interface TagsRegistryResponse {
+	registry: TagsRegistry;
+	updated_at: string;
+}
+
+export interface TagsUpdateRequest {
+	registry: TagsRegistry;
 }

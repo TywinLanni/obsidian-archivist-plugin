@@ -4,7 +4,7 @@ import type { NoteResponse } from "./types";
 
 /**
  * Writes NoteResponse objects to vault as .md files.
- * Handles folder creation and filename sanitization.
+ * Handles folder creation, filename sanitization, and markdown generation.
  */
 export class NoteWriter {
 	constructor(
@@ -17,15 +17,10 @@ export class NoteWriter {
 	 * @returns File path if created, null if file already exists (dedup)
 	 */
 	async write(note: NoteResponse): Promise<string | null> {
-		const parts = [this.basePath, note.category];
-		if (note.subcategory) {
-			parts.push(note.subcategory);
-		}
-
-		const dir = normalizePath(parts.join("/"));
+		const dir = normalizePath(`${this.basePath}/${note.category}`);
 		await this.ensureFolder(dir);
 
-		const fileName = this.sanitize(note.title);
+		const fileName = this.sanitize(note.name);
 		const filePath = normalizePath(`${dir}/${fileName}.md`);
 
 		// Deduplication: skip if file already exists
@@ -33,7 +28,8 @@ export class NoteWriter {
 			return null;
 		}
 
-		await this.vault.create(filePath, note.markdown);
+		const markdown = this.generateMarkdown(note);
+		await this.vault.create(filePath, markdown);
 		return filePath;
 	}
 
@@ -42,6 +38,43 @@ export class NoteWriter {
 	 */
 	setBasePath(basePath: string): void {
 		this.basePath = basePath;
+	}
+
+	/**
+	 * Generate markdown content with YAML frontmatter.
+	 */
+	private generateMarkdown(note: NoteResponse): string {
+		const lines: string[] = [
+			"---",
+			`category: ${note.category}`,
+			"tags:",
+		];
+
+		for (const tag of note.tags) {
+			lines.push(`  - ${tag}`);
+		}
+
+		lines.push(`summary: "${note.summary.replace(/"/g, '\\"')}"`);
+		lines.push("source: telegram");
+		lines.push(`created: ${note.created_at}`);
+
+		if (note.synced_at) {
+			lines.push(`synced: ${note.synced_at}`);
+		}
+
+		lines.push("---");
+		lines.push("");
+
+		// Add tags as hashtags
+		if (note.tags.length > 0) {
+			lines.push(note.tags.map((t) => `#${t}`).join(" "));
+			lines.push("");
+		}
+
+		// Add content
+		lines.push(note.content);
+
+		return lines.join("\n");
 	}
 
 	/**

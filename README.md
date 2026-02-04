@@ -8,6 +8,8 @@ Sync voice notes from ArchivistBot Telegram bot to your Obsidian vault with auto
 - **Manual sync** — ribbon icon and command for on-demand sync
 - **Archive notes** — move processed notes to archive with resolution status
 - **Auto-categorization** — notes are organized by category/subcategory from AI processing
+- **Categories & tags sync** — bidirectional sync of categories and tags between Obsidian and server
+- **Status indicator** — status bar shows sync state (synced/pending/error/offline)
 - **Mobile compatible** — works on both desktop and mobile Obsidian
 
 ## Installation
@@ -35,13 +37,13 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's plugin folder.
 
 Open **Settings → ArchivistBot** to configure:
 
-| Setting | Description | Default |
-|---------|-------------|---------|
-| Server URL | ArchivistBot API endpoint | `http://localhost:8000` |
-| Auth token | Bearer token for authentication (optional for local) | empty |
-| Sync interval | Seconds between automatic syncs (10-300) | 60 |
-| Vault base path | Folder where synced notes are stored | `VoiceNotes` |
-| Auto sync | Enable/disable automatic sync | enabled |
+| Setting         | Description                                          | Default                 |
+|-----------------|------------------------------------------------------|-------------------------|
+| Server URL      | ArchivistBot API endpoint                            | `http://localhost:8000` |
+| Auth token      | Bearer token for authentication (optional for local) | empty                   |
+| Sync interval   | Seconds between automatic syncs (10-300)             | 60                      |
+| Vault base path | Folder where synced notes are stored                 | `VoiceNotes`            |
+| Auto sync       | Enable/disable automatic sync                        | enabled                 |
 
 ## Usage
 
@@ -50,6 +52,21 @@ Open **Settings → ArchivistBot** to configure:
 - **Automatic**: Notes sync automatically based on the configured interval
 - **Manual**: Click the refresh icon in the ribbon or use command **ArchivistBot: Sync notes now**
 - **Health check**: Use command **ArchivistBot: Check server connection** to verify server connectivity
+
+### Categories and tags
+
+The plugin syncs categories and tags bidirectionally with the server:
+
+- **categories.md** — defines available categories with descriptions (markdown table format)
+- **tags_registry.md** — tracks tag usage per category (YAML frontmatter format)
+
+Edit these files in Obsidian and changes will automatically sync to the server. The status bar indicator shows:
+- 🟢 synced — all changes pushed to server
+- 🟡 pending — local changes waiting to sync
+- 🔴 error — sync failed (click to retry)
+- ⚫ offline — server unreachable
+
+Use command **ArchivistBot: Sync categories and tags** to manually trigger config sync.
 
 ### Archiving notes
 
@@ -69,6 +86,8 @@ Synced notes are organized as:
 
 ```
 VoiceNotes/
+├── categories.md           # Category definitions
+├── tags_registry.md        # Tags by category
 ├── work/
 │   ├── meetings/
 │   │   └── standup-notes.md
@@ -82,11 +101,12 @@ VoiceNotes/
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| Sync notes now | Manually trigger sync with server |
-| Check server connection | Test if server is reachable |
-| Archive note | Archive the current note with resolution |
+| Command                   | Description                              |
+|---------------------------|------------------------------------------|
+| Sync notes now            | Manually trigger sync with server        |
+| Sync categories and tags  | Manually sync config files with server   |
+| Check server connection   | Test if server is reachable              |
+| Archive note              | Archive the current note with resolution |
 
 ## Network disclosure
 
@@ -94,6 +114,10 @@ This plugin connects to your configured ArchivistBot server to:
 - Fetch unsynced notes (`GET /notes/unsynced`)
 - Mark notes as synced (`POST /notes/mark-synced`)
 - Check server health (`GET /health`)
+- Fetch categories (`GET /categories`)
+- Update categories (`PUT /categories`)
+- Fetch tags registry (`GET /tags`)
+- Update tags registry (`PUT /tags`)
 
 No data is sent to third parties. All communication is with your self-hosted or configured server.
 

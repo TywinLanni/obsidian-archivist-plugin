@@ -1,6 +1,14 @@
 // src/api-client.ts
 import { requestUrl } from "obsidian";
-import type { NoteResponse, HealthResponse, MarkSyncedResponse } from "./types";
+import type {
+	SyncResponse,
+	HealthResponse,
+	MarkSyncedResponse,
+	CategoriesResponse,
+	CategoryItem,
+	TagsRegistryResponse,
+	TagsRegistry,
+} from "./types";
 import type { ArchivistBotSettings } from "./settings";
 
 /**
@@ -25,6 +33,8 @@ export class ArchivistApiClient {
 		return h;
 	}
 
+	// ── Health ──
+
 	async health(): Promise<HealthResponse> {
 		const resp = await requestUrl({
 			url: `${this.baseUrl}/health`,
@@ -33,21 +43,63 @@ export class ArchivistApiClient {
 		return resp.json as HealthResponse;
 	}
 
-	async fetchUnsynced(): Promise<NoteResponse[]> {
+	// ── Notes ──
+
+	async fetchUnsynced(): Promise<SyncResponse> {
 		const resp = await requestUrl({
 			url: `${this.baseUrl}/notes/unsynced`,
 			headers: this.headers,
 		});
-		return resp.json as NoteResponse[];
+		return resp.json as SyncResponse;
 	}
 
-	async markSynced(ids: string[]): Promise<MarkSyncedResponse> {
+	async markSynced(noteIds: string[]): Promise<MarkSyncedResponse> {
 		const resp = await requestUrl({
 			url: `${this.baseUrl}/notes/mark-synced`,
 			method: "POST",
 			headers: this.headers,
-			body: JSON.stringify({ ids }),
+			body: JSON.stringify({ note_ids: noteIds }),
 		});
 		return resp.json as MarkSyncedResponse;
+	}
+
+	// ── Categories ──
+
+	async getCategories(): Promise<CategoriesResponse> {
+		const resp = await requestUrl({
+			url: `${this.baseUrl}/categories`,
+			headers: this.headers,
+		});
+		return resp.json as CategoriesResponse;
+	}
+
+	async updateCategories(categories: CategoryItem[]): Promise<CategoriesResponse> {
+		const resp = await requestUrl({
+			url: `${this.baseUrl}/categories`,
+			method: "PUT",
+			headers: this.headers,
+			body: JSON.stringify({ categories }),
+		});
+		return resp.json as CategoriesResponse;
+	}
+
+	// ── Tags ──
+
+	async getTags(): Promise<TagsRegistryResponse> {
+		const resp = await requestUrl({
+			url: `${this.baseUrl}/tags`,
+			headers: this.headers,
+		});
+		return resp.json as TagsRegistryResponse;
+	}
+
+	async updateTags(registry: TagsRegistry): Promise<TagsRegistryResponse> {
+		const resp = await requestUrl({
+			url: `${this.baseUrl}/tags`,
+			method: "PUT",
+			headers: this.headers,
+			body: JSON.stringify({ registry }),
+		});
+		return resp.json as TagsRegistryResponse;
 	}
 }
