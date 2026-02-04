@@ -1,0 +1,310 @@
+openapi: 3.1.0
+info:
+  title: ArchivistBot API
+  description: |
+    REST API for syncing voice notes between ArchivistBot Telegram bot and Obsidian plugin.
+    
+    This spec is the **source of truth** for the API contract. Both the server implementation
+    and client types are derived from this specification.
+  version: 0.1.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+tags:
+  - name: health
+    description: Health check endpoints
+  - name: notes
+    description: Note sync operations
+  - name: categories
+    description: Category management
+  - name: tags
+    description: Tags registry management
+
+paths:
+  /health:
+    get:
+      operationId: health
+      summary: Health check
+      description: Returns server status and version (not versioned)
+      tags: [health]
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /v1/notes/unsynced:
+    get:
+      operationId: getUnsyncedNotes
+      summary: Get unsynced notes
+      description: Returns notes that have not yet been synced to Obsidian
+      tags: [notes]
+      responses:
+        '200':
+          description: List of unsynced notes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+
+  /v1/notes/{noteId}:
+    get:
+      operationId: getNote
+      summary: Get note by ID
+      description: Returns a single note by its UUID
+      tags: [notes]
+      parameters:
+        - name: noteId
+          in: path
+          required: true
+          description: Note UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Note found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoteResponse'
+        '400':
+          description: Invalid note ID format
+        '404':
+          description: Note not found
+
+  /v1/notes/mark-synced:
+    post:
+      operationId: markNotesSynced
+      summary: Mark notes as synced
+      description: Mark notes as synced after plugin writes them to Obsidian
+      tags: [notes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkSyncedRequest'
+      responses:
+        '200':
+          description: Notes marked as synced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkSyncedResponse'
+
+  /v1/categories:
+    get:
+      operationId: getCategories
+      summary: Get all categories
+      description: Returns all categories for plugin sync
+      tags: [categories]
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoriesResponse'
+    put:
+      operationId: updateCategories
+      summary: Update categories
+      description: Replace all categories with new list from plugin
+      tags: [categories]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoriesUpdateRequest'
+      responses:
+        '200':
+          description: Categories updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoriesResponse'
+
+  /v1/tags:
+    get:
+      operationId: getTags
+      summary: Get tags registry
+      description: Returns tags registry with usage counts per category
+      tags: [tags]
+      responses:
+        '200':
+          description: Tags registry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagsRegistryResponse'
+    put:
+      operationId: updateTags
+      summary: Update tags registry
+      description: Replace tags registry with new data from plugin
+      tags: [tags]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagsUpdateRequest'
+      responses:
+        '200':
+          description: Tags registry updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagsRegistryResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          example: ok
+        version:
+          type: string
+          example: 0.1.0
+
+    NoteResponse:
+      type: object
+      required: [id, name, content, category, tags, summary, created_at]
+      properties:
+        id:
+          type: string
+          description: Note UUID (as string)
+        name:
+          type: string
+          description: Note name (used as Obsidian filename)
+        content:
+          type: string
+          description: Raw transcript content
+        category:
+          type: string
+          description: Note category (e.g., "work", "personal")
+        tags:
+          type: array
+          items:
+            type: string
+          description: List of tags
+        summary:
+          type: string
+          description: AI-generated summary
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp (ISO 8601)
+        synced_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Sync timestamp (null if not synced)
+
+    SyncResponse:
+      type: object
+      required: [notes, server_time]
+      properties:
+        notes:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoteResponse'
+        server_time:
+          type: string
+          format: date-time
+          description: Current server time (ISO 8601)
+
+    MarkSyncedRequest:
+      type: object
+      required: [note_ids]
+      properties:
+        note_ids:
+          type: array
+          items:
+            type: string
+          description: List of note UUIDs to mark as synced (as strings)
+
+    MarkSyncedResponse:
+      type: object
+      required: [synced_count]
+      properties:
+        synced_count:
+          type: integer
+          description: Number of notes successfully marked as synced
+
+    CategoryItem:
+      type: object
+      required: [name, description]
+      properties:
+        name:
+          type: string
+          description: Category name (e.g., "work", "work/meetings")
+        description:
+          type: string
+          description: Human-readable category description
+
+    CategoriesResponse:
+      type: object
+      required: [categories, updated_at]
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryItem'
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    CategoriesUpdateRequest:
+      type: object
+      required: [categories]
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryItem'
+
+    TagsRegistryResponse:
+      type: object
+      required: [registry, updated_at]
+      properties:
+        registry:
+          type: object
+          description: "Tags registry: {category: {tag: count}}"
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: integer
+          example:
+            work:
+              meeting: 12
+              planning: 5
+            personal:
+              health: 3
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    TagsUpdateRequest:
+      type: object
+      required: [registry]
+      properties:
+        registry:
+          type: object
+          description: "Tags registry: {category: {tag: count}}"
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: integer

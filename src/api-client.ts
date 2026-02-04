@@ -47,7 +47,7 @@ export class ArchivistApiClient {
 
 	async fetchUnsynced(): Promise<SyncResponse> {
 		const resp = await requestUrl({
-			url: `${this.baseUrl}/notes/unsynced`,
+			url: `${this.baseUrl}/v1/notes/unsynced`,
 			headers: this.headers,
 		});
 		return resp.json as SyncResponse;
@@ -55,7 +55,7 @@ export class ArchivistApiClient {
 
 	async markSynced(noteIds: string[]): Promise<MarkSyncedResponse> {
 		const resp = await requestUrl({
-			url: `${this.baseUrl}/notes/mark-synced`,
+			url: `${this.baseUrl}/v1/notes/mark-synced`,
 			method: "POST",
 			headers: this.headers,
 			body: JSON.stringify({ note_ids: noteIds }),
@@ -67,7 +67,7 @@ export class ArchivistApiClient {
 
 	async getCategories(): Promise<CategoriesResponse> {
 		const resp = await requestUrl({
-			url: `${this.baseUrl}/categories`,
+			url: `${this.baseUrl}/v1/categories`,
 			headers: this.headers,
 		});
 		return resp.json as CategoriesResponse;
@@ -75,7 +75,7 @@ export class ArchivistApiClient {
 
 	async updateCategories(categories: CategoryItem[]): Promise<CategoriesResponse> {
 		const resp = await requestUrl({
-			url: `${this.baseUrl}/categories`,
+			url: `${this.baseUrl}/v1/categories`,
 			method: "PUT",
 			headers: this.headers,
 			body: JSON.stringify({ categories }),
@@ -87,7 +87,7 @@ export class ArchivistApiClient {
 
 	async getTags(): Promise<TagsRegistryResponse> {
 		const resp = await requestUrl({
-			url: `${this.baseUrl}/tags`,
+			url: `${this.baseUrl}/v1/tags`,
 			headers: this.headers,
 		});
 		return resp.json as TagsRegistryResponse;
@@ -95,7 +95,7 @@ export class ArchivistApiClient {
 
 	async updateTags(registry: TagsRegistry): Promise<TagsRegistryResponse> {
 		const resp = await requestUrl({
-			url: `${this.baseUrl}/tags`,
+			url: `${this.baseUrl}/v1/tags`,
 			method: "PUT",
 			headers: this.headers,
 			body: JSON.stringify({ registry }),

@@ -57,58 +57,48 @@ npm run lint         # Run eslint
 
 ## API contract
 
-Server endpoints used by the plugin:
+**Source of truth:** [`ArchivistBot/core/openapi.yaml`](https://github.com/TywinLanni/ArchivistBot/blob/saas-mode/core/openapi.yaml)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Server health check, returns `{ status, version }` |
-| GET | `/notes/unsynced` | Fetch notes pending sync, returns `SyncResponse` |
-| POST | `/notes/mark-synced` | Mark notes as synced, body: `{ ids: string[] }` |
-| GET | `/categories` | Get all categories |
-| PUT | `/categories` | Update categories from plugin |
-| GET | `/tags` | Get tags registry |
-| PUT | `/tags` | Update tags from plugin |
+### Updating types after API changes
 
-### NoteResponse structure
-
-```typescript
-interface NoteResponse {
-  id: string;
-  name: string;         // note filename (without .md)
-  markdown: string;     // ready .md content with frontmatter
-  category: string;
-  subcategory: string | null;
-  created_at: string;   // ISO datetime
-}
-
-interface SyncResponse {
-  notes: NoteResponse[];
-}
+```bash
+npm run update-api    # Fetches spec and regenerates types
 ```
 
-### Categories & Tags structures
+This runs:
+1. `fetch-spec` — downloads `openapi.yaml` from ArchivistBot repo (by tag)
+2. `generate-types` — runs `openapi-typescript` to generate `src/api-types.ts`
 
-```typescript
-interface CategoryItem {
-  name: string;
-  description: string;
-}
+### Generated files
 
-interface CategoriesResponse {
-  categories: CategoryItem[];
-}
+- `openapi.yaml` — local copy of spec (fetched from ArchivistBot)
+- `src/api-types.ts` — generated TypeScript types (DO NOT EDIT)
+- `src/types.ts` — re-exports from api-types.ts with convenient aliases
 
-// Tags registry: { category: { tag: count } }
-interface TagsRegistry {
-  [category: string]: {
-    [tag: string]: number;
-  };
-}
+### Versioning
 
-interface TagsRegistryResponse {
-  tags: TagsRegistry;
-}
-```
+Types are generated from a specific git tag. To update to a new API version:
+
+1. Update the tag in `package.json` scripts (e.g., `v0.1.0` → `v1.0.0`)
+2. Run `npm run update-api`
+3. Fix any type errors in the codebase
+4. Test thoroughly
+
+### Current types
+
+Types in `src/types.ts` re-export from generated `src/api-types.ts`:
+
+| Type | Description |
+|------|-------------|
+| `NoteResponse` | Note data with id, name, content, category, tags, summary |
+| `SyncResponse` | Wrapper with notes array and server_time |
+| `HealthResponse` | Server status and version |
+| `MarkSyncedRequest` | Request body for marking notes synced |
+| `MarkSyncedResponse` | Count of synced notes |
+| `CategoryItem` | Category name and description |
+| `CategoriesResponse` | Categories array with updated_at |
+| `TagsRegistry` | `{category: {tag: count}}` structure |
+| `TagsRegistryResponse` | Registry with updated_at |
 
 ## Plugin features
 

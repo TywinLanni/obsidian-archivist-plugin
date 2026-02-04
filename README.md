@@ -108,16 +108,28 @@ VoiceNotes/
 | Check server connection   | Test if server is reachable              |
 | Archive note              | Archive the current note with resolution |
 
+## API Contract
+
+This plugin implements the [ArchivistBot API](https://github.com/TywinLanni/ArchivistBot/blob/saas-mode/core/openapi.yaml).
+
+TypeScript types in `src/types.ts` are derived from the OpenAPI spec. To regenerate after API changes:
+
+```bash
+npm run update-api
+```
+
+This fetches the spec from the ArchivistBot repository and generates types using `openapi-typescript`.
+
 ## Network disclosure
 
 This plugin connects to your configured ArchivistBot server to:
-- Fetch unsynced notes (`GET /notes/unsynced`)
-- Mark notes as synced (`POST /notes/mark-synced`)
 - Check server health (`GET /health`)
-- Fetch categories (`GET /categories`)
-- Update categories (`PUT /categories`)
-- Fetch tags registry (`GET /tags`)
-- Update tags registry (`PUT /tags`)
+- Fetch unsynced notes (`GET /v1/notes/unsynced`)
+- Mark notes as synced (`POST /v1/notes/mark-synced`)
+- Fetch categories (`GET /v1/categories`)
+- Update categories (`PUT /v1/categories`)
+- Fetch tags registry (`GET /v1/tags`)
+- Update tags registry (`PUT /v1/tags`)
 
 No data is sent to third parties. All communication is with your self-hosted or configured server.
 
