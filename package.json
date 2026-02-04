@@ -11,7 +11,8 @@
 		"lint": "eslint .",
 		"fetch-spec": "curl -o openapi.yaml https://raw.githubusercontent.com/TywinLanni/ArchivistBot/v0.1.0/core/openapi.yaml",
 		"generate-types": "npx openapi-typescript openapi.yaml -o src/api-types.ts",
-		"update-api": "npm run fetch-spec && npm run generate-types"
+		"update-api": "npm run fetch-spec && npm run generate-types",
+		"prepare": "husky"
 	},
 	"keywords": [
 		"obsidian",
@@ -27,6 +28,7 @@
 		"esbuild": "^0.24.0",
 		"eslint-plugin-obsidianmd": "^0.1.9",
 		"globals": "^14.0.0",
+		"husky": "^9.1.7",
 		"jiti": "^2.0.0",
 		"openapi-typescript": "^7.10.1",
 		"tslib": "^2.8.0",
