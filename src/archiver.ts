@@ -4,15 +4,15 @@ import {
 	TFile,
 	Notice,
 	Modal,
-	Setting,
 	normalizePath,
 	TFolder,
+	setIcon,
 } from "obsidian";
 
 const RESOLUTIONS = [
-	{ value: "realized", label: "Realized" },
-	{ value: "dropped", label: "Dropped" },
-	{ value: "outdated", label: "Outdated" },
+	{ value: "realized", label: "Realized", icon: "check-circle-2" },
+	{ value: "dropped", label: "Dropped", icon: "x-circle" },
+	{ value: "outdated", label: "Outdated", icon: "clock" },
 ] as const;
 
 type Resolution = (typeof RESOLUTIONS)[number]["value"];
@@ -36,19 +36,27 @@ class ArchiveModal extends Modal {
 
 	onOpen(): void {
 		const { contentEl } = this;
-		contentEl.createEl("h3", { text: "Archive note" });
-		contentEl.createEl("p", { text: "Select resolution:" });
+		contentEl.addClass("archivistbot-archive-modal");
 
-		for (const { value, label } of RESOLUTIONS) {
-			new Setting(contentEl).addButton((btn) =>
-				btn
-					.setButtonText(label)
-					.setCta()
-					.onClick(() => {
-						this.resolve?.(value);
-						this.close();
-					})
-			);
+		contentEl.createEl("h3", { text: "Archive note" });
+		contentEl.createEl("p", {
+			text: "Select resolution:",
+			cls: "archivistbot-archive-hint",
+		});
+
+		const btnRow = contentEl.createDiv({ cls: "archivistbot-archive-buttons" });
+
+		for (const { value, label, icon } of RESOLUTIONS) {
+			const btn = btnRow.createEl("button", {
+				cls: "archivistbot-resolution-btn",
+			});
+			const iconEl = btn.createSpan({ cls: "archivistbot-resolution-icon" });
+			setIcon(iconEl, icon);
+			btn.createSpan({ text: label });
+			btn.addEventListener("click", () => {
+				this.resolve?.(value);
+				this.close();
+			});
 		}
 	}
 

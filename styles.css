@@ -1,40 +1,84 @@
 /* ArchivistBot Plugin Styles */
 
-/* Archive button (for future inline button feature) */
-.archivistbot-archive-btn {
-	cursor: pointer;
-	padding: 4px 12px;
-	border-radius: 4px;
+/* ── Archive modal ── */
+
+.archivistbot-archive-modal {
+	text-align: center;
+	padding: var(--size-4-2) var(--size-4-4) var(--size-4-4);
+}
+
+.archivistbot-archive-modal h3 {
+	margin: 0 0 var(--size-2-1);
+}
+
+.archivistbot-archive-hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	margin: 0 0 var(--size-4-4);
+}
+
+.archivistbot-archive-buttons {
+	display: flex;
+	gap: var(--size-4-2);
+	justify-content: center;
+}
+
+/* Reset Obsidian's default button height constraint */
+.archivistbot-resolution-btn {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--size-4-2);
+	height: auto;
+	line-height: var(--line-height-normal);
+	padding: var(--size-4-3) var(--size-4-4);
 	border: 1px solid var(--background-modifier-border);
-	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	background-color: var(--interactive-normal);
 	color: var(--text-normal);
 	font-size: var(--font-ui-small);
-	transition: background 0.15s ease;
+	cursor: pointer;
+	transition:
+		border-color 0.15s ease,
+		background-color 0.15s ease,
+		box-shadow 0.15s ease;
 }
 
-.archivistbot-archive-btn:hover {
-	background: var(--background-modifier-hover);
+.archivistbot-resolution-btn:hover {
+	border-color: var(--interactive-accent);
+	background-color: var(--interactive-hover);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-/* Container for actions (for future inline button feature) */
-.archivistbot-actions {
-	margin-top: 8px;
-	padding: 8px 0;
-	border-top: 1px solid var(--background-modifier-border);
+.archivistbot-resolution-btn:active {
+	background-color: var(--interactive-hover);
 }
 
-/* Archive modal button spacing */
-.archivistbot-archive-btn.is-cta {
-	margin-bottom: 4px;
+.archivistbot-resolution-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-muted);
 }
 
-/* Connection status in settings */
+.archivistbot-resolution-icon svg {
+	width: var(--icon-m);
+	height: var(--icon-m);
+}
+
+.archivistbot-resolution-btn:hover .archivistbot-resolution-icon {
+	color: var(--interactive-accent);
+}
+
+/* ── Connection status in settings ── */
+
 .archivistbot-connection-status {
-	padding: 8px 12px;
-	margin-bottom: 12px;
-	border-radius: 6px;
+	padding: var(--size-4-2) var(--size-4-3);
+	margin-bottom: var(--size-4-3);
+	border-radius: var(--radius-s);
 	font-size: var(--font-ui-small);
 	font-weight: 500;
-	background: var(--background-secondary);
+	background-color: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 }

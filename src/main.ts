@@ -1,5 +1,5 @@
 // src/main.ts
-import { Plugin, Notice, TFile } from "obsidian";
+import { Plugin, Notice, TFile, MarkdownView } from "obsidian";
 import {
 	ArchivistBotSettings,
 	DEFAULT_SETTINGS,
@@ -137,7 +137,7 @@ export default class ArchivistBotPlugin extends Plugin {
 			},
 		});
 
-		// ── Context Menu: Archive ──
+		// ── Context Menu: Archive (file explorer, tabs, links) ──
 		this.registerEvent(
 			this.app.workspace.on("file-menu", (menu, file) => {
 				if (!(file instanceof TFile)) {
@@ -147,6 +147,26 @@ export default class ArchivistBotPlugin extends Plugin {
 					return;
 				}
 
+				menu.addItem((item) =>
+					item
+						.setTitle("Archive (archivistbot)")
+						.setIcon("archive")
+						.onClick(() => void this.archiver.archive(file))
+				);
+			})
+		);
+
+		// ── Context Menu: Archive (editor right-click) ──
+		this.registerEvent(
+			this.app.workspace.on("editor-menu", (menu, _editor, view) => {
+				if (!(view instanceof MarkdownView) || !view.file) {
+					return;
+				}
+				if (!this.archiver.canArchive(view.file)) {
+					return;
+				}
+
+				const file = view.file;
 				menu.addItem((item) =>
 					item
 						.setTitle("Archive (archivistbot)")
