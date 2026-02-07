@@ -27,3 +27,14 @@
 .archivistbot-archive-btn.is-cta {
 	margin-bottom: 4px;
 }
+
+/* Connection status in settings */
+.archivistbot-connection-status {
+	padding: 8px 12px;
+	margin-bottom: 12px;
+	border-radius: 6px;
+	font-size: var(--font-ui-small);
+	font-weight: 500;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+}

@@ -1,5 +1,5 @@
 // src/settings.ts
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type ArchivistBotPlugin from "./main";
 
 export interface ArchivistBotSettings {
@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS: ArchivistBotSettings = {
 
 export class ArchivistBotSettingTab extends PluginSettingTab {
 	plugin: ArchivistBotPlugin;
+	private statusEl: HTMLElement | null = null;
 
 	constructor(app: App, plugin: ArchivistBotPlugin) {
 		super(app, plugin);
@@ -33,6 +34,10 @@ export class ArchivistBotSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
+
+		// ── Connection status ──
+		this.statusEl = containerEl.createDiv({ cls: "archivistbot-connection-status" });
+		this.updateConnectionStatus();
 
 		new Setting(containerEl)
 			.setName("Server URL")
@@ -50,16 +55,51 @@ export class ArchivistBotSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Auth token")
 			.setDesc("Token from Telegram bot (/start or /newtoken)")
-			.addText((text) =>
+			.addText((text) => {
+				// Show placeholder if already connected (token was rotated internally),
+				// show actual value only if freshly pasted and not yet connected
+				const hasSession = !!this.plugin.settings.accessToken;
 				text
 					.setPlaceholder("Paste token from Telegram...")
-					.setValue(this.plugin.settings.refreshToken)
+					.setValue(hasSession ? "" : this.plugin.settings.refreshToken)
 					.onChange(async (value) => {
-						this.plugin.settings.refreshToken = value.trim();
+						// Strip all whitespace — Telegram may insert line breaks in long tokens
+					this.plugin.settings.refreshToken = value.replace(/\s+/g, "");
 						// Clear cached access token when refresh token changes
 						this.plugin.settings.accessToken = "";
 						this.plugin.settings.accessTokenExpiresAt = 0;
 						await this.plugin.saveSettings();
+					});
+
+				if (hasSession) {
+					text.inputEl.placeholder = "Connected (paste new token to reconnect)";
+				}
+			});
+
+		// ── Connect button ──
+		new Setting(containerEl)
+			.setName("Connect")
+			.setDesc("Validate token and sync configuration with server")
+			.addButton((btn) =>
+				btn
+					.setButtonText("Connect")
+					.setCta()
+					.onClick(async () => {
+						if (!this.plugin.settings.refreshToken) {
+							new Notice("Paste an auth token first");
+							return;
+						}
+
+						btn.setButtonText("Connecting...");
+						btn.setDisabled(true);
+
+						try {
+							await this.plugin.connect();
+							this.updateConnectionStatus();
+						} finally {
+							btn.setButtonText("Connect");
+							btn.setDisabled(false);
+						}
 					})
 			);
 
@@ -105,5 +145,28 @@ export class ArchivistBotSettingTab extends PluginSettingTab {
 					}
 				})
 			);
+	}
+
+	/**
+	 * Update the connection status indicator in settings.
+	 */
+	private updateConnectionStatus(): void {
+		if (!this.statusEl) {
+			return;
+		}
+		this.statusEl.empty();
+
+		const emoji = this.plugin.configSync.getStatusEmoji();
+		const status = this.plugin.configSync.getStatus();
+
+		const labels: Record<string, string> = {
+			synced: "Connected",
+			pending: "Syncing...",
+			error: "Connection error",
+			offline: "Server unreachable",
+		};
+
+		const label = labels[status] ?? status;
+		this.statusEl.setText(`${emoji} ${label}`);
 	}
 }

@@ -17,7 +17,7 @@ export default class ArchivistBotPlugin extends Plugin {
 	private writer!: NoteWriter;
 	private syncEngine!: SyncEngine;
 	private archiver!: NoteArchiver;
-	private configSync!: ConfigSync;
+	configSync!: ConfigSync;
 	private statusBarEl!: HTMLElement;
 
 	async onload(): Promise<void> {
@@ -158,15 +158,17 @@ export default class ArchivistBotPlugin extends Plugin {
 
 		// ── Initialize on Layout Ready ──
 		this.app.workspace.onLayoutReady(() => {
-			// Initialize config sync (creates files, pulls from server)
-			void this.configSync.initialize();
-
-			// Start file watcher for categories.md and tags_registry.md
+			// Start file watcher always (local-only, no auth needed)
 			this.configSync.startWatching((ref) => this.registerEvent(ref));
 
-			// Start auto sync if enabled
-			if (this.settings.autoSync) {
-				this.startSync();
+			// Only auto-connect if we have a previously successful session
+			// (accessToken present = token was already rotated via connect())
+			if (this.settings.accessToken) {
+				void this.configSync.initialize();
+
+				if (this.settings.autoSync) {
+					this.startSync();
+				}
 			}
 		});
 	}
@@ -193,6 +195,34 @@ export default class ArchivistBotPlugin extends Plugin {
 	}
 
 	restartSync(): void {
+		if (this.settings.autoSync) {
+			this.stopSync();
+			this.startSync();
+		}
+	}
+
+	/**
+	 * Connect to server: validate token, initialize config, start sync.
+	 * Called from settings "Connect" button.
+	 */
+	async connect(): Promise<void> {
+		try {
+			// Validate connection via health check
+			const h = await this.client.health();
+			new Notice(`Server ok (v${h.version})`);
+		} catch (e) {
+			if (e instanceof RefreshTokenExpiredError) {
+				new Notice("Auth token expired. Use /newtoken in Telegram to get a new one.");
+			} else {
+				new Notice(`Server unreachable — ${String(e)}`);
+			}
+			return;
+		}
+
+		// Re-initialize config (categories + tags sync with server)
+		await this.configSync.initialize();
+
+		// (Re)start auto sync if enabled
 		if (this.settings.autoSync) {
 			this.stopSync();
 			this.startSync();

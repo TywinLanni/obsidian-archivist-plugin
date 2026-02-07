@@ -78,10 +78,11 @@ export class SyncEngine {
 	/**
 	 * Perform a single sync operation.
 	 * Can be called manually or by the interval.
+	 * @returns Number of notes written (0 = nothing new, -1 = skipped/guard)
 	 */
-	async sync(): Promise<void> {
+	async sync(): Promise<number> {
 		if (this.syncing) {
-			return; // Guard against overlapping syncs
+			return -1; // Guard against overlapping syncs
 		}
 		this.syncing = true;
 
@@ -90,7 +91,7 @@ export class SyncEngine {
 			const notes = response.notes;
 
 			if (notes.length === 0) {
-				return;
+				return 0;
 			}
 
 			const written: string[] = [];
@@ -127,11 +128,13 @@ export class SyncEngine {
 				this.consecutiveFailures = 0;
 				this.reschedule();
 			}
+
+			return written.length;
 		} catch (e) {
 			if (e instanceof RefreshTokenExpiredError) {
 				new Notice("Auth token expired. Use /newtoken in Telegram to get a new one.");
 				this.stop();
-				return;
+				return -1;
 			}
 
 			this.consecutiveFailures++;
@@ -142,13 +145,14 @@ export class SyncEngine {
 
 			// Reschedule with backoff
 			this.reschedule();
+			throw e;
 		} finally {
 			this.syncing = false;
 		}
 	}
 
 	/**
-	 * Manual sync with error notification.
+	 * Manual sync with user-facing feedback.
 	 */
 	async manualSync(): Promise<void> {
 		if (this.syncing) {
@@ -157,11 +161,13 @@ export class SyncEngine {
 		}
 
 		try {
-			await this.sync();
-			// If no notes were synced, show a message
-			// (sync() already shows notice if notes were written)
+			const count = await this.sync();
+			// sync() already shows notice when notes were written (count > 0)
+			if (count === 0) {
+				new Notice("Archivistbot: no new notes");
+			}
 		} catch (e) {
-			new Notice(`Archivistbot: sync failed - ${String(e)}`);
+			new Notice(`Archivistbot: sync failed — ${String(e)}`);
 			throw e;
 		}
 	}
