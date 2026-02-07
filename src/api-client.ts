@@ -271,11 +271,20 @@ export class ArchivistApiClient {
 		});
 	}
 
-	async markSynced(noteIds: string[]): Promise<MarkSyncedResponse> {
+	async markSynced(
+		noteIds: string[],
+		vaultPaths?: Record<string, string>,
+	): Promise<MarkSyncedResponse> {
+		const payload: { note_ids: string[]; vault_paths?: Record<string, string> } = {
+			note_ids: noteIds,
+		};
+		if (vaultPaths && Object.keys(vaultPaths).length > 0) {
+			payload.vault_paths = vaultPaths;
+		}
 		return this.request<MarkSyncedResponse>({
 			url: `${this.baseUrl}/v1/notes/mark-synced`,
 			method: "POST",
-			body: JSON.stringify({ note_ids: noteIds }),
+			body: JSON.stringify(payload),
 		});
 	}
 

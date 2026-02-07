@@ -96,12 +96,14 @@ export class SyncEngine {
 
 			const written: string[] = [];
 			const syncedIds: string[] = [];
+			const vaultPaths: Record<string, string> = {};
 
 			for (const note of notes) {
 				try {
 					const path = await this.writer.write(note);
 					if (path) {
 						written.push(path);
+						vaultPaths[note.id] = path;
 					}
 					// Mark as synced: either written (path) or dedup (null)
 					syncedIds.push(note.id);
@@ -116,7 +118,7 @@ export class SyncEngine {
 			}
 
 			if (syncedIds.length > 0) {
-				await this.client.markSynced(syncedIds);
+				await this.client.markSynced(syncedIds, vaultPaths);
 			}
 
 			if (written.length > 0) {

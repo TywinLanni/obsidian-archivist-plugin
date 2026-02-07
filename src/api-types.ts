@@ -282,6 +282,11 @@ export interface components {
              * @description Sync timestamp (null if not synced)
              */
             synced_at?: string | null;
+            /**
+             * @description Vault file path to append to (when this note is a reply/addition
+             *     to an already-synced note). Null for standalone notes.
+             */
+            append_to?: string | null;
         };
         SyncResponse: {
             notes: components["schemas"]["NoteResponse"][];
@@ -294,6 +299,10 @@ export interface components {
         MarkSyncedRequest: {
             /** @description List of note UUIDs to mark as synced (as strings) */
             note_ids: string[];
+            /** @description Mapping of note UUID to vault file path: {note_id: path} */
+            vault_paths?: {
+                [key: string]: string;
+            };
         };
         MarkSyncedResponse: {
             /** @description Number of notes successfully marked as synced */

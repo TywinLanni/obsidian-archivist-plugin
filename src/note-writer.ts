@@ -1,27 +1,51 @@
 // src/note-writer.ts
-import { Vault, normalizePath, TFolder, stringifyYaml } from "obsidian";
+import { App, Vault, normalizePath, TFolder, TFile, stringifyYaml } from "obsidian";
 import type { NoteResponse } from "./types";
 
 /**
  * Writes NoteResponse objects to vault as .md files.
- * Handles folder creation, filename sanitization, and markdown generation.
+ * Handles folder creation, filename sanitization, markdown generation,
+ * and appending content to existing notes (reply/addition flow).
+ *
+ * When a reply targets an archived note, restores it from _archive/
+ * back to its original location before appending.
  */
 export class NoteWriter {
+	private vault: Vault;
+
 	constructor(
-		private vault: Vault,
+		private app: App,
 		private basePath: string
-	) {}
+	) {
+		this.vault = app.vault;
+	}
 
 	/**
-	 * Write a note to the vault.
-	 * @returns File path if created, null if file already exists (dedup)
+	 * Write a note to the vault — either as a new file or appended to an existing one.
+	 *
+	 * When `note.append_to` is set, appends content to the referenced file.
+	 * Otherwise creates a new file with a datetime-stamped filename.
+	 *
+	 * @returns Vault file path (new or appended), null if dedup skipped
 	 */
 	async write(note: NoteResponse): Promise<string | null> {
+		if (note.append_to) {
+			return this.appendToExisting(note);
+		}
+		return this.createNew(note);
+	}
+
+	/**
+	 * Create a new note file with datetime-stamped filename.
+	 * Format: {sanitized_name}_{YYYYMMDD_HHmmss}.md
+	 */
+	private async createNew(note: NoteResponse): Promise<string | null> {
 		const dir = normalizePath(`${this.basePath}/${note.category}`);
 		await this.ensureFolder(dir);
 
 		const fileName = this.sanitize(note.name);
-		const filePath = normalizePath(`${dir}/${fileName}.md`);
+		const timestamp = this.formatTimestamp(note.created_at);
+		const filePath = normalizePath(`${dir}/${fileName}_${timestamp}.md`);
 
 		// Deduplication: skip if file already exists
 		if (this.vault.getAbstractFileByPath(filePath)) {
@@ -31,6 +55,69 @@ export class NoteWriter {
 		const markdown = this.generateMarkdown(note);
 		await this.vault.create(filePath, markdown);
 		return filePath;
+	}
+
+	/**
+	 * Append note content to an existing file referenced by `note.append_to`.
+	 *
+	 * Resolution order:
+	 * 1. File exists at append_to path → append directly
+	 * 2. File found in _archive/ (was archived) → restore to original path, then append
+	 * 3. File not found anywhere → create as new note
+	 */
+	private async appendToExisting(note: NoteResponse): Promise<string | null> {
+		const targetPath = normalizePath(note.append_to!);
+		let file = this.vault.getAbstractFileByPath(targetPath);
+
+		// Not at original path — check archive
+		if (!(file instanceof TFile)) {
+			const archivedFile = this.findInArchive(targetPath);
+			if (archivedFile) {
+				// Restore from archive to original location
+				const dir = targetPath.slice(0, targetPath.lastIndexOf("/"));
+				await this.ensureFolder(dir);
+				await this.app.fileManager.renameFile(archivedFile, targetPath);
+				file = this.vault.getAbstractFileByPath(targetPath);
+				console.debug(
+					`[ArchivistBot] Restored from archive: ${archivedFile.path} → ${targetPath}`,
+				);
+			}
+		}
+
+		if (!(file instanceof TFile)) {
+			// Not found anywhere — create as new note
+			console.warn(
+				`[ArchivistBot] Append target not found: ${targetPath}, creating new file`,
+			);
+			return this.createNew(note);
+		}
+
+		// Append content
+		const separator = `\n\n---\n\n**Дополнение** (${this.formatHumanDate(note.created_at)})\n\n`;
+		const existing = await this.vault.read(file);
+		await this.vault.modify(file, existing + separator + note.content);
+
+		// Update frontmatter: set updated timestamp
+		await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+			fm.updated = note.created_at;
+		});
+
+		return targetPath;
+	}
+
+	/**
+	 * Try to find a file in _archive/ that was originally at `originalPath`.
+	 *
+	 * originalPath: "VoiceNotes/work/meetings/note.md"
+	 * archive path: "VoiceNotes/_archive/work/meetings/note.md"
+	 */
+	private findInArchive(originalPath: string): TFile | null {
+		// originalPath starts with basePath + "/"
+		const relative = originalPath.slice(this.basePath.length + 1);
+		// relative = "work/meetings/note.md"
+		const archivePath = normalizePath(`${this.basePath}/_archive/${relative}`);
+		const file = this.vault.getAbstractFileByPath(archivePath);
+		return file instanceof TFile ? file : null;
 	}
 
 	/**
@@ -87,6 +174,32 @@ export class NoteWriter {
 				await this.vault.createFolder(current);
 			}
 		}
+	}
+
+	/**
+	 * Format ISO timestamp as YYYYMMDD_HHmmss for filenames.
+	 * Uses UTC to ensure consistent filenames regardless of timezone.
+	 */
+	private formatTimestamp(isoDate: string): string {
+		const d = new Date(isoDate);
+		const pad = (n: number) => String(n).padStart(2, "0");
+		return (
+			`${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
+			`_${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}`
+		);
+	}
+
+	/**
+	 * Format ISO timestamp as human-readable date for append separator.
+	 * Uses UTC for consistency.
+	 */
+	private formatHumanDate(isoDate: string): string {
+		const d = new Date(isoDate);
+		const pad = (n: number) => String(n).padStart(2, "0");
+		return (
+			`${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
+			`${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+		);
 	}
 
 	/**

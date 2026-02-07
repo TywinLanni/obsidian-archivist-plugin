@@ -29,7 +29,7 @@ export default class ArchivistBotPlugin extends Plugin {
 		);
 
 		this.writer = new NoteWriter(
-			this.app.vault,
+			this.app,
 			this.settings.vaultBasePath
 		);
 
