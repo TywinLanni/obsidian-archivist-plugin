@@ -24,6 +24,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh access token
+         * @description Exchange a refresh token for a new access/refresh token pair.
+         *     Send the refresh token in the Authorization header.
+         *     Commercial edition only.
+         */
+        post: operations["refreshToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/notes/unsynced": {
         parameters: {
             query?: never;
@@ -84,6 +106,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/init": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plugin initialization
+         * @description Called once when plugin connects for the first time.
+         *     Saves categories from plugin and processes any pending notes
+         *     (messages sent before plugin was configured) in background.
+         */
+        post: operations["pluginInit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/categories": {
         parameters: {
             query?: never;
@@ -125,6 +169,79 @@ export interface paths {
          * @description Replace tags registry with new data from plugin
          */
         put: operations["updateTags"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/user/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get user settings
+         * @description Returns current user settings including data retention period.
+         */
+        get: operations["getUserSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update user settings
+         * @description Update user settings. Currently supports data_retention_days (0-7).
+         *     0 = delete notes immediately after sync.
+         *     1-7 = delete notes N days after sync.
+         */
+        patch: operations["updateUserSettings"];
+        trace?: never;
+    };
+    "/v1/user/data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export all user data
+         * @description GDPR Art. 20 — Data Portability. Returns all user data as JSON.
+         *     Commercial edition only.
+         */
+        get: operations["exportUserData"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete all user data
+         * @description GDPR Art. 17 — Right to Erasure. Permanently deletes all user data.
+         *     Commercial edition only.
+         */
+        delete: operations["deleteUserData"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/user/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List active sessions
+         * @description Returns all active (non-revoked) sessions for the authenticated user.
+         *     Commercial edition only.
+         */
+        get: operations["listUserSessions"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -231,6 +348,90 @@ export interface components {
                 };
             };
         };
+        UserSettingsResponse: {
+            /**
+             * @description Days to keep synced notes on server before automatic deletion.
+             *     0 = delete immediately after sync. Default: 7.
+             * @example 7
+             */
+            data_retention_days: number;
+        };
+        UserSettingsUpdateRequest: {
+            /**
+             * @description Days to keep synced notes on server before automatic deletion.
+             *     0 = delete immediately after sync.
+             */
+            data_retention_days?: number;
+        };
+        ErrorResponse: {
+            /** @description Error message */
+            detail: string;
+        };
+        TokenPairResponse: {
+            /** @description Short-lived JWT access token */
+            access_token: string;
+            /** @description Long-lived JWT refresh token */
+            refresh_token: string;
+            /**
+             * Format: date-time
+             * @description Access token expiration (ISO 8601)
+             */
+            expires_at: string;
+        };
+        SessionInfo: {
+            /** Format: uuid */
+            id: string;
+            device_name: string | null;
+            device_type: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            last_used_at: string;
+            /** @description Whether this is the session making the request */
+            is_current: boolean;
+        };
+        UserSessionsResponse: {
+            sessions: components["schemas"]["SessionInfo"][];
+        };
+        UserDataExport: {
+            user: {
+                /** Format: uuid */
+                id?: string;
+                chat_id?: number;
+                email?: string | null;
+                locale?: string | null;
+                /** Format: date-time */
+                gdpr_consent_at?: string | null;
+                gdpr_consent_version?: string | null;
+                /** Format: date-time */
+                created_at?: string;
+            };
+            notes: components["schemas"]["NoteResponse"][];
+            sessions: {
+                /** Format: uuid */
+                id?: string;
+                device_name?: string | null;
+                device_type?: string | null;
+                /** Format: date-time */
+                created_at?: string;
+                /** Format: date-time */
+                last_used_at?: string;
+            }[];
+            audit_log: {
+                action?: string;
+                resource_type?: string | null;
+                resource_id?: string | null;
+                /** Format: date-time */
+                created_at?: string;
+            }[];
+            /** Format: date-time */
+            exported_at: string;
+        };
+        UserDataDeleteResponse: {
+            deleted: boolean;
+            notes_deleted: number;
+            message: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -256,6 +457,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    refreshToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description New token pair */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPairResponse"];
+                };
+            };
+            /** @description Missing, expired, or invalid refresh token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Session revoked or user not found */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -337,6 +576,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MarkSyncedResponse"];
+                };
+            };
+        };
+    };
+    pluginInit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoriesUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Plugin initialized */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example ok */
+                        status: string;
+                        categories_saved: number;
+                        pending_notes: number;
+                        message: string;
+                    };
                 };
             };
         };
@@ -426,6 +695,152 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TagsRegistryResponse"];
                 };
+            };
+        };
+    };
+    getUserSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSettingsResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateUserSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserSettingsUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Settings updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSettingsResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    exportUserData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Full user data export */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDataExport"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteUserData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Data deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDataDeleteResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listUserSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of sessions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSessionsResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

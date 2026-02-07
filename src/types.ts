@@ -7,7 +7,7 @@
 
 import type { components } from "./api-types";
 
-// Schema types (convenient aliases)
+// ── Core schemas ──
 export type HealthResponse = components["schemas"]["HealthResponse"];
 export type NoteResponse = components["schemas"]["NoteResponse"];
 export type SyncResponse = components["schemas"]["SyncResponse"];
@@ -18,6 +18,18 @@ export type CategoriesResponse = components["schemas"]["CategoriesResponse"];
 export type CategoriesUpdateRequest = components["schemas"]["CategoriesUpdateRequest"];
 export type TagsRegistryResponse = components["schemas"]["TagsRegistryResponse"];
 export type TagsUpdateRequest = components["schemas"]["TagsUpdateRequest"];
+
+// ── Auth (commercial edition) ──
+export type TokenPairResponse = components["schemas"]["TokenPairResponse"];
+export type ErrorResponse = components["schemas"]["ErrorResponse"];
+
+// ── User & GDPR (commercial edition) ──
+export type UserSettingsResponse = components["schemas"]["UserSettingsResponse"];
+export type UserSettingsUpdateRequest = components["schemas"]["UserSettingsUpdateRequest"];
+export type SessionInfo = components["schemas"]["SessionInfo"];
+export type UserSessionsResponse = components["schemas"]["UserSessionsResponse"];
+export type UserDataExport = components["schemas"]["UserDataExport"];
+export type UserDataDeleteResponse = components["schemas"]["UserDataDeleteResponse"];
 
 // TagsRegistry is now inline in TagsRegistryResponse, define as convenience type
 export type TagsRegistry = Record<string, Record<string, number>>;
