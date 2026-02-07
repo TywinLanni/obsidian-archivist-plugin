@@ -1,5 +1,5 @@
 // src/note-writer.ts
-import { Vault, normalizePath, TFolder } from "obsidian";
+import { Vault, normalizePath, TFolder, stringifyYaml } from "obsidian";
 import type { NoteResponse } from "./types";
 
 /**
@@ -44,37 +44,29 @@ export class NoteWriter {
 	 * Generate markdown content with YAML frontmatter.
 	 */
 	private generateMarkdown(note: NoteResponse): string {
-		const lines: string[] = [
-			"---",
-			`category: ${note.category}`,
-			"tags:",
-		];
-
-		for (const tag of note.tags) {
-			lines.push(`  - ${tag}`);
-		}
-
-		lines.push(`summary: "${note.summary.replace(/"/g, '\\"')}"`);
-		lines.push("source: telegram");
-		lines.push(`created: ${note.created_at}`);
+		const frontmatter: Record<string, unknown> = {
+			category: note.category,
+			tags: note.tags,
+			summary: note.summary,
+			source: "telegram",
+			created: note.created_at,
+		};
 
 		if (note.synced_at) {
-			lines.push(`synced: ${note.synced_at}`);
+			frontmatter.synced = note.synced_at;
 		}
 
-		lines.push("---");
-		lines.push("");
+		const yaml = stringifyYaml(frontmatter).trimEnd();
+		const parts: string[] = [`---\n${yaml}\n---`, ""];
 
 		// Add tags as hashtags
 		if (note.tags.length > 0) {
-			lines.push(note.tags.map((t) => `#${t}`).join(" "));
-			lines.push("");
+			parts.push(note.tags.map((t) => `#${t}`).join(" "), "");
 		}
 
-		// Add content
-		lines.push(note.content);
+		parts.push(note.content);
 
-		return lines.join("\n");
+		return parts.join("\n");
 	}
 
 	/**

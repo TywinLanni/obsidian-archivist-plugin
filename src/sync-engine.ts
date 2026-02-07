@@ -1,15 +1,22 @@
 // src/sync-engine.ts
 import { Notice } from "obsidian";
+import { RefreshTokenExpiredError } from "./api-client";
 import type { ArchivistApiClient } from "./api-client";
 import type { NoteWriter } from "./note-writer";
+
+/** Max consecutive failures before stopping backoff growth. */
+const MAX_BACKOFF_MULTIPLIER = 5;
 
 /**
  * Handles periodic sync of notes from ArchivistBot server.
  * Fetches unsynced notes, writes them to vault, marks as synced.
+ * Implements exponential backoff on server errors.
  */
 export class SyncEngine {
 	private intervalId: number | null = null;
 	private syncing = false;
+	private consecutiveFailures = 0;
+	private baseIntervalSec = 60;
 
 	constructor(
 		private client: ArchivistApiClient,
@@ -23,11 +30,26 @@ export class SyncEngine {
 	 */
 	start(intervalSec: number): void {
 		this.stop();
+		this.baseIntervalSec = intervalSec;
+		this.consecutiveFailures = 0;
 		// Immediate first sync
 		void this.sync();
+		this.scheduleNext();
+	}
+
+	/**
+	 * Schedule next sync with backoff on failures.
+	 */
+	private scheduleNext(): void {
+		const multiplier = Math.min(
+			2 ** this.consecutiveFailures,
+			2 ** MAX_BACKOFF_MULTIPLIER,
+		);
+		const intervalMs = this.baseIntervalSec * multiplier * 1000;
+
 		this.intervalId = window.setInterval(
 			() => void this.sync(),
-			intervalSec * 1000
+			intervalMs,
 		);
 		this.registerInterval(this.intervalId);
 	}
@@ -40,6 +62,17 @@ export class SyncEngine {
 			window.clearInterval(this.intervalId);
 			this.intervalId = null;
 		}
+	}
+
+	/**
+	 * Restart interval with current backoff level.
+	 */
+	private reschedule(): void {
+		if (this.intervalId !== null) {
+			window.clearInterval(this.intervalId);
+			this.intervalId = null;
+		}
+		this.scheduleNext();
 	}
 
 	/**
@@ -64,11 +97,21 @@ export class SyncEngine {
 			const syncedIds: string[] = [];
 
 			for (const note of notes) {
-				const path = await this.writer.write(note);
-				if (path) {
-					written.push(path);
+				try {
+					const path = await this.writer.write(note);
+					if (path) {
+						written.push(path);
+					}
+					// Mark as synced: either written (path) or dedup (null)
+					syncedIds.push(note.id);
+				} catch (writeErr) {
+					// write() failed for this note — do NOT mark as synced
+					// so it will be retried on next sync
+					console.error(
+						`[ArchivistBot] Failed to write note ${note.id}:`,
+						writeErr,
+					);
 				}
-				syncedIds.push(note.id);
 			}
 
 			if (syncedIds.length > 0) {
@@ -78,9 +121,27 @@ export class SyncEngine {
 			if (written.length > 0) {
 				new Notice(`Archivistbot: synced ${written.length} note(s)`);
 			}
+
+			// Success — reset backoff
+			if (this.consecutiveFailures > 0) {
+				this.consecutiveFailures = 0;
+				this.reschedule();
+			}
 		} catch (e) {
-			console.error("[ArchivistBot] sync error:", e);
-			// Don't spam Notice on every interval - only on manual sync
+			if (e instanceof RefreshTokenExpiredError) {
+				new Notice("Auth token expired. Use /newtoken in Telegram to get a new one.");
+				this.stop();
+				return;
+			}
+
+			this.consecutiveFailures++;
+			console.error(
+				`[ArchivistBot] sync error (attempt ${this.consecutiveFailures}):`,
+				e,
+			);
+
+			// Reschedule with backoff
+			this.reschedule();
 		} finally {
 			this.syncing = false;
 		}

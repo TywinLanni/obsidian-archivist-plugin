@@ -1,5 +1,5 @@
 // src/tags-manager.ts
-import { Vault, TFile, normalizePath } from "obsidian";
+import { Vault, TFile, normalizePath, parseYaml, stringifyYaml } from "obsidian";
 import type { TagsRegistry } from "./types";
 
 const TAGS_FILENAME = "tags_registry.md";
@@ -93,87 +93,50 @@ export class TagsManager {
 	 * Parse YAML frontmatter into TagsRegistry.
 	 */
 	private parseMarkdown(content: string): TagsRegistry {
-		// Extract YAML frontmatter between ---
 		const match = content.match(/^---\n([\s\S]*?)\n---/);
 		if (!match) {
 			return {};
 		}
 
-		const yamlContent = match[1];
-		return this.parseYaml(yamlContent);
-	}
-
-	/**
-	 * Simple YAML parser for our specific format.
-	 * Format:
-	 * category:
-	 *   tag: count
-	 */
-	private parseYaml(yaml: string): TagsRegistry {
-		const registry: TagsRegistry = {};
-		const lines = yaml.split("\n");
-
-		let currentCategory: string | null = null;
-
-		for (const line of lines) {
-			// Skip empty lines
-			if (!line.trim()) {
-				continue;
+		try {
+			const parsed: unknown = parseYaml(match[1]);
+			if (!parsed || typeof parsed !== "object") {
+				return {};
 			}
-
-			// Category line (no leading spaces, ends with :)
-			if (!line.startsWith(" ") && line.endsWith(":")) {
-				currentCategory = line.slice(0, -1).trim();
-				registry[currentCategory] = {};
-				continue;
-			}
-
-			// Tag line (has leading spaces, format: "  tag: count")
-			if (currentCategory && line.startsWith("  ")) {
-				const tagMatch = line.match(/^\s+([^:]+):\s*(\d+)/);
-				if (tagMatch) {
-					const tag = tagMatch[1].trim();
-					const count = parseInt(tagMatch[2], 10);
-					registry[currentCategory][tag] = count;
-				}
-			}
+			return parsed as TagsRegistry;
+		} catch {
+			console.error("[ArchivistBot] Failed to parse tags_registry.md YAML");
+			return {};
 		}
-
-		return registry;
 	}
 
 	/**
 	 * Format registry as markdown with YAML frontmatter.
+	 * Sorts categories alphabetically and tags by count descending
+	 * for consistent, readable output.
 	 */
 	private formatAsMarkdown(registry: TagsRegistry): string {
-		const yamlLines: string[] = [];
-
-		// Sort categories for consistent output
-		const categories = Object.keys(registry).sort();
-
-		for (const category of categories) {
+		// Sort for consistent output
+		const sorted: TagsRegistry = {};
+		for (const category of Object.keys(registry).sort()) {
 			const tags = registry[category];
 			if (!tags || Object.keys(tags).length === 0) {
-				yamlLines.push(`${category}: {}`);
+				sorted[category] = {};
 				continue;
 			}
-
-			yamlLines.push(`${category}:`);
-
 			// Sort tags by count descending
-			const sortedTags = Object.entries(tags).sort((a, b) => b[1] - a[1]);
-			for (const [tag, count] of sortedTags) {
-				yamlLines.push(`  ${tag}: ${count}`);
-			}
+			sorted[category] = Object.fromEntries(
+				Object.entries(tags).sort((a, b) => b[1] - a[1])
+			);
 		}
 
-		const yaml = yamlLines.length > 0 ? yamlLines.join("\n") : "";
+		const yaml = stringifyYaml(sorted).trimEnd();
 
 		return `---
 ${yaml}
 ---
 
-# Tags Registry
+# Tags registry
 
 Auto-managed by ArchivistBot. Edit with caution.
 
