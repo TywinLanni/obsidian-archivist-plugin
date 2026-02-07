@@ -5,7 +5,7 @@ import {
 	DEFAULT_SETTINGS,
 	ArchivistBotSettingTab,
 } from "./settings";
-import { ArchivistApiClient } from "./api-client";
+import { ArchivistApiClient, RefreshTokenExpiredError } from "./api-client";
 import { NoteWriter } from "./note-writer";
 import { SyncEngine } from "./sync-engine";
 import { NoteArchiver } from "./archiver";
@@ -23,7 +23,10 @@ export default class ArchivistBotPlugin extends Plugin {
 	async onload(): Promise<void> {
 		await this.loadSettings();
 
-		this.client = new ArchivistApiClient(() => this.settings);
+		this.client = new ArchivistApiClient(
+			() => this.settings,
+			() => this.saveSettings(),
+		);
 
 		this.writer = new NoteWriter(
 			this.app.vault,
@@ -105,7 +108,11 @@ export default class ArchivistBotPlugin extends Plugin {
 					const h = await this.client.health();
 					new Notice(`Server ok (v${h.version})`);
 				} catch (e) {
-					new Notice(`Server unreachable - ${String(e)}`);
+					if (e instanceof RefreshTokenExpiredError) {
+						new Notice("Auth token expired. Use /newtoken in Telegram to get a new one.");
+					} else {
+						new Notice(`Server unreachable - ${String(e)}`);
+					}
 				}
 			},
 		});
@@ -166,6 +173,7 @@ export default class ArchivistBotPlugin extends Plugin {
 
 	onunload(): void {
 		this.syncEngine.stop();
+		this.configSync.destroy();
 	}
 
 	/**

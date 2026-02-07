@@ -4,15 +4,19 @@ import type ArchivistBotPlugin from "./main";
 
 export interface ArchivistBotSettings {
 	endpoint: string;
-	authToken: string;
+	refreshToken: string;
+	accessToken: string;
+	accessTokenExpiresAt: number; // unix timestamp ms, 0 = not set
 	syncIntervalSec: number;
-	vaultBasePath: string;       // root folder for notes in vault
+	vaultBasePath: string;        // root folder for notes in vault
 	autoSync: boolean;
 }
 
 export const DEFAULT_SETTINGS: ArchivistBotSettings = {
 	endpoint: "http://localhost:8000",
-	authToken: "",
+	refreshToken: "",
+	accessToken: "",
+	accessTokenExpiresAt: 0,
 	syncIntervalSec: 60,
 	vaultBasePath: "VoiceNotes",
 	autoSync: true,
@@ -45,13 +49,16 @@ export class ArchivistBotSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Auth token")
-			.setDesc("Bearer token (for saas mode, leave empty for local)")
+			.setDesc("Token from Telegram bot (/start or /newtoken)")
 			.addText((text) =>
 				text
-					.setPlaceholder("Enter token...")
-					.setValue(this.plugin.settings.authToken)
+					.setPlaceholder("Paste token from Telegram...")
+					.setValue(this.plugin.settings.refreshToken)
 					.onChange(async (value) => {
-						this.plugin.settings.authToken = value;
+						this.plugin.settings.refreshToken = value.trim();
+						// Clear cached access token when refresh token changes
+						this.plugin.settings.accessToken = "";
+						this.plugin.settings.accessTokenExpiresAt = 0;
 						await this.plugin.saveSettings();
 					})
 			);

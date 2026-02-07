@@ -1,5 +1,6 @@
 // src/config-sync.ts
-import { Notice, TFile, EventRef, Vault } from "obsidian";
+import { Notice, TFile, type EventRef, Vault } from "obsidian";
+import { RefreshTokenExpiredError } from "./api-client";
 import type { ArchivistApiClient } from "./api-client";
 import { CategoriesManager } from "./categories-manager";
 import { TagsManager } from "./tags-manager";
@@ -14,7 +15,6 @@ export class ConfigSync {
 	private categoriesManager: CategoriesManager;
 	private tagsManager: TagsManager;
 	private status: SyncStatus = "pending";
-	private fileWatcherRef: EventRef | null = null;
 	private debounceTimer: number | null = null;
 	private onStatusChange: ((status: SyncStatus) => void) | null = null;
 
@@ -50,22 +50,60 @@ export class ConfigSync {
 	}
 
 	/**
-	 * Initialize: create default files, pull from server, start watching.
+	 * Initialize: create default files, send init to server, pull tags.
+	 *
+	 * On first run: creates default categories.md, sends them to server
+	 * via POST /v1/init (which also triggers processing of any pending notes).
+	 * On subsequent runs: pulls existing config from server.
 	 */
 	async initialize(): Promise<void> {
 		// Ensure files exist with defaults
 		await this.categoriesManager.ensureExists();
 		await this.tagsManager.ensureExists();
 
-		// Try to pull from server
-		await this.pullFromServer();
+		try {
+			// Check if server has categories
+			const serverCategories = await this.client.getCategories();
+
+			if (serverCategories.categories.length === 0) {
+				// First init — push local categories to server
+				const localCategories = await this.categoriesManager.read();
+				const result = await this.client.pluginInit(localCategories);
+
+				if (result.pending_notes > 0) {
+					new Notice(
+						`Plugin connected! ${result.pending_notes} pending notes will be processed.`
+					);
+				} else {
+					new Notice("Plugin connected!");
+				}
+			} else {
+				// Server already has categories — pull them
+				await this.categoriesManager.write(serverCategories.categories);
+			}
+
+			// Always pull tags from server
+			const tagsResponse = await this.client.getTags();
+			await this.tagsManager.write(tagsResponse.registry);
+
+			this.setStatus("synced");
+		} catch (e) {
+			if (e instanceof RefreshTokenExpiredError) {
+				new Notice("Auth token expired. Use /newtoken in Telegram to get a new one.");
+				this.setStatus("error");
+				return;
+			}
+			console.error("[ArchivistBot] Failed to initialize config:", e);
+			this.setStatus("offline");
+			// Don't throw — files have defaults, plugin can work offline
+		}
 	}
 
 	/**
 	 * Start watching for file changes.
 	 */
 	startWatching(registerEvent: (ref: EventRef) => void): void {
-		this.fileWatcherRef = this.vault.on("modify", (file) => {
+		const ref = this.vault.on("modify", (file) => {
 			if (!(file instanceof TFile)) {
 				return;
 			}
@@ -78,7 +116,7 @@ export class ConfigSync {
 			}
 		});
 
-		registerEvent(this.fileWatcherRef);
+		registerEvent(ref);
 	}
 
 	/**
@@ -113,6 +151,11 @@ export class ConfigSync {
 
 			this.setStatus("synced");
 		} catch (e) {
+			if (e instanceof RefreshTokenExpiredError) {
+				new Notice("Auth token expired. Use /newtoken in Telegram to get a new one.");
+				this.setStatus("error");
+				return;
+			}
 			console.error("[ArchivistBot] Failed to pull config from server:", e);
 			this.setStatus("offline");
 			// Don't throw - files have defaults, plugin can work offline
@@ -139,6 +182,11 @@ export class ConfigSync {
 
 			this.setStatus("synced");
 		} catch (e) {
+			if (e instanceof RefreshTokenExpiredError) {
+				new Notice("Auth token expired. Use /newtoken in Telegram to get a new one.");
+				this.setStatus("error");
+				return;
+			}
 			console.error("[ArchivistBot] Failed to push config to server:", e);
 			this.setStatus("error");
 			new Notice("Failed to sync config to server");
@@ -163,6 +211,17 @@ export class ConfigSync {
 	private setStatus(status: SyncStatus): void {
 		this.status = status;
 		this.onStatusChange?.(status);
+	}
+
+	/**
+	 * Clean up resources (debounce timer).
+	 * Call from plugin onunload.
+	 */
+	destroy(): void {
+		if (this.debounceTimer !== null) {
+			window.clearTimeout(this.debounceTimer);
+			this.debounceTimer = null;
+		}
 	}
 
 	/**
