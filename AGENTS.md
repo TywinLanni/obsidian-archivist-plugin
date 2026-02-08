@@ -9,8 +9,8 @@
 
 ## Related Repositories
 
-| Repository | Path | Description |
-|------------|------|-------------|
+| Repository       | Path                                       | Description                                           |
+|------------------|--------------------------------------------|-------------------------------------------------------|
 | **ArchivistBot** | `C:\Users\Tywin\IdeaProjects\ArchivistBot` | Telegram bot + REST API (Python, FastAPI, PostgreSQL) |
 
 ### Cross-repo workflow
@@ -49,18 +49,18 @@ src/
 
 ### Module responsibilities
 
-| Module | Responsibility |
-|--------|----------------|
-| `main.ts` | Plugin lifecycle (onload/onunload), command registration, ribbon icon, context menu, settings tab, status bar |
-| `settings.ts` | `ArchivistBotSettings` interface, `DEFAULT_SETTINGS`, `ArchivistBotSettingTab` class |
-| `types.ts` | Core: `NoteResponse`, `SyncResponse`, `HealthResponse`, `MarkSyncedRequest`, `MarkSyncedResponse`, `CategoryItem`, `CategoriesResponse`, `CategoriesUpdateRequest`, `TagsRegistryResponse`, `TagsUpdateRequest`, `TagsRegistry`. Auth: `TokenPairResponse`, `ErrorResponse`. User/GDPR: `UserSettingsResponse`, `UserSettingsUpdateRequest`, `SessionInfo`, `UserSessionsResponse`, `UserDataExport`, `UserDataDeleteResponse` |
-| `api-client.ts` | `ArchivistApiClient` class with `health()`, `fetchUnsynced()`, `markSynced()`, `pluginInit()`, `getCategories()`, `updateCategories()`, `getTags()`, `updateTags()` |
-| `note-writer.ts` | `NoteWriter` class - creates folders, sanitizes filenames, writes markdown |
-| `sync-engine.ts` | `SyncEngine` class - interval management, sync logic, deduplication |
-| `archiver.ts` | `NoteArchiver` class, `ArchiveModal` - resolution selection, frontmatter update, file move |
-| `categories-manager.ts` | `CategoriesManager` class - parse/write `categories.md` markdown table format |
-| `tags-manager.ts` | `TagsManager` class - parse/write `tags_registry.md` YAML frontmatter format |
-| `config-sync.ts` | `ConfigSync` class - orchestrates bidirectional sync, file watching, status tracking |
+| Module                  | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                 |
+|-------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `main.ts`               | Plugin lifecycle (onload/onunload), command registration, ribbon icon, context menu, settings tab, status bar                                                                                                                                                                                                                                                                                                                  |
+| `settings.ts`           | `ArchivistBotSettings` interface, `DEFAULT_SETTINGS`, `ArchivistBotSettingTab` class                                                                                                                                                                                                                                                                                                                                           |
+| `types.ts`              | Core: `NoteResponse`, `SyncResponse`, `HealthResponse`, `MarkSyncedRequest`, `MarkSyncedResponse`, `CategoryItem`, `CategoriesResponse`, `CategoriesUpdateRequest`, `TagsRegistryResponse`, `TagsUpdateRequest`, `TagsRegistry`. Auth: `TokenPairResponse`, `ErrorResponse`. User/GDPR: `UserSettingsResponse`, `UserSettingsUpdateRequest`, `SessionInfo`, `UserSessionsResponse`, `UserDataExport`, `UserDataDeleteResponse` |
+| `api-client.ts`         | `ArchivistApiClient` class with `health()`, `fetchUnsynced()`, `markSynced()`, `pluginInit()`, `getCategories()`, `updateCategories()`, `getTags()`, `updateTags()`                                                                                                                                                                                                                                                            |
+| `note-writer.ts`        | `NoteWriter` class - creates folders, sanitizes filenames, writes markdown                                                                                                                                                                                                                                                                                                                                                     |
+| `sync-engine.ts`        | `SyncEngine` class - interval management, sync logic, deduplication                                                                                                                                                                                                                                                                                                                                                            |
+| `archiver.ts`           | `NoteArchiver` class, `ArchiveModal` - resolution selection, frontmatter update, file move                                                                                                                                                                                                                                                                                                                                     |
+| `categories-manager.ts` | `CategoriesManager` class - parse/write `categories.md` markdown table format                                                                                                                                                                                                                                                                                                                                                  |
+| `tags-manager.ts`       | `TagsManager` class - parse/write `tags_registry.md` YAML frontmatter format                                                                                                                                                                                                                                                                                                                                                   |
+| `config-sync.ts`        | `ConfigSync` class - orchestrates bidirectional sync, file watching, status tracking                                                                                                                                                                                                                                                                                                                                           |
 
 ## Environment & tooling
 
@@ -112,38 +112,38 @@ Types are generated from a specific git tag. To update to a new API version:
 
 Types in `src/types.ts` re-export from generated `src/api-types.ts`:
 
-| Type | Description |
-|------|-------------|
-| `NoteResponse` | Note data with id, name, content, category, tags, summary |
-| `SyncResponse` | Wrapper with notes array and server_time |
-| `HealthResponse` | Server status and version |
-| `MarkSyncedRequest` | Request body for marking notes synced |
-| `MarkSyncedResponse` | Count of synced notes |
-| `CategoryItem` | Category name and description |
-| `CategoriesResponse` | Categories array with updated_at |
-| `CategoriesUpdateRequest` | Request body for updating categories |
-| `TagsRegistryResponse` | Registry with updated_at |
-| `TagsUpdateRequest` | Request body for updating tags |
-| `TagsRegistry` | `{category: {tag: count}}` convenience type |
-| `TokenPairResponse` | Access + refresh token pair (auth) |
-| `ErrorResponse` | Error response with detail message |
-| `UserSettingsResponse` | User settings from server |
-| `UserSettingsUpdateRequest` | Request body for updating user settings |
-| `SessionInfo` | Single session info (device, last_used) |
-| `UserSessionsResponse` | List of user sessions |
-| `UserDataExport` | Full user data export (GDPR) |
-| `UserDataDeleteResponse` | Confirmation of user data deletion (GDPR) |
+| Type                        | Description                                               |
+|-----------------------------|-----------------------------------------------------------|
+| `NoteResponse`              | Note data with id, name, content, category, tags, summary |
+| `SyncResponse`              | Wrapper with notes array and server_time                  |
+| `HealthResponse`            | Server status and version                                 |
+| `MarkSyncedRequest`         | Request body for marking notes synced                     |
+| `MarkSyncedResponse`        | Count of synced notes                                     |
+| `CategoryItem`              | Category name and description                             |
+| `CategoriesResponse`        | Categories array with updated_at                          |
+| `CategoriesUpdateRequest`   | Request body for updating categories                      |
+| `TagsRegistryResponse`      | Registry with updated_at                                  |
+| `TagsUpdateRequest`         | Request body for updating tags                            |
+| `TagsRegistry`              | `{category: {tag: count}}` convenience type               |
+| `TokenPairResponse`         | Access + refresh token pair (auth)                        |
+| `ErrorResponse`             | Error response with detail message                        |
+| `UserSettingsResponse`      | User settings from server                                 |
+| `UserSettingsUpdateRequest` | Request body for updating user settings                   |
+| `SessionInfo`               | Single session info (device, last_used)                   |
+| `UserSessionsResponse`      | List of user sessions                                     |
+| `UserDataExport`            | Full user data export (GDPR)                              |
+| `UserDataDeleteResponse`    | Confirmation of user data deletion (GDPR)                 |
 
 ## Plugin features
 
 ### Commands (stable IDs - do not rename)
 
-| ID | Name | Description |
-|----|------|-------------|
-| `sync-now` | Sync notes now | Manual sync trigger |
-| `sync-config` | Sync categories and tags | Manual config sync trigger |
-| `health-check` | Check server connection | Test server connectivity |
-| `archive-note` | Archive note | Archive current note with resolution |
+| ID             | Name                     | Description                          |
+|----------------|--------------------------|--------------------------------------|
+| `sync-now`     | Sync notes now           | Manual sync trigger                  |
+| `sync-config`  | Sync categories and tags | Manual config sync trigger           |
+| `health-check` | Check server connection  | Test server connectivity             |
+| `archive-note` | Archive note             | Archive current note with resolution |
 
 ### Status bar indicator
 
@@ -155,15 +155,15 @@ Shows config sync status:
 
 ### Settings
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `endpoint` | string | `http://localhost:8000` | Server URL |
-| `refreshToken` | string | `""` | Refresh token (obtained via Connect flow in Telegram bot) |
-| `accessToken` | string | `""` | Short-lived access token (auto-refreshed) |
-| `accessTokenExpiresAt` | number | `0` | Access token expiry (unix timestamp ms, 0 = not set) |
-| `syncIntervalSec` | number | `60` | Sync interval (10-300) |
-| `vaultBasePath` | string | `VoiceNotes` | Root folder for notes |
-| `autoSync` | boolean | `true` | Enable automatic sync |
+| Key                    | Type    | Default                 | Description                                               |
+|------------------------|---------|-------------------------|-----------------------------------------------------------|
+| `endpoint`             | string  | `http://localhost:8000` | Server URL                                                |
+| `refreshToken`         | string  | `""`                    | Refresh token (obtained via Connect flow in Telegram bot) |
+| `accessToken`          | string  | `""`                    | Short-lived access token (auto-refreshed)                 |
+| `accessTokenExpiresAt` | number  | `0`                     | Access token expiry (unix timestamp ms, 0 = not set)      |
+| `syncIntervalSec`      | number  | `60`                    | Sync interval (10-300)                                    |
+| `vaultBasePath`        | string  | `VoiceNotes`            | Root folder for notes                                     |
+| `autoSync`             | boolean | `true`                  | Enable automatic sync                                     |
 
 ## Coding conventions
 
@@ -224,6 +224,24 @@ This file tracks tag usage across categories.
 3. Reload Obsidian, enable plugin
 4. Configure server URL in settings
 5. Test sync and archive functionality
+
+## Documentation
+
+| Document        | Audience   | Location                                                                | Description                          |
+|-----------------|------------|-------------------------------------------------------------------------|--------------------------------------|
+| `README.md`     | Developers | This repo                                                               | Setup, architecture, contributing    |
+| `user-guide.md` | End users  | **Bot repo** (`C:\Users\Tywin\IdeaProjects\ArchivistBot\user-guide.md`) | Features, commands, plugin usage     |
+| `AGENTS.md`     | AI agents  | This repo                                                               | Project rules, patterns, conventions |
+
+### User Guide maintenance
+
+The user guide lives in the **bot repository** (single source of truth for both projects).
+
+When implementing a **user-facing feature** in the plugin (new command, settings change, sync behavior, UI element):
+
+1. Update `C:\Users\Tywin\IdeaProjects\ArchivistBot\user-guide.md` — section "Obsidian плагин"
+2. Keep the guide in Russian, written for non-technical users
+3. Do NOT add implementation details — only describe what the user sees and does
 
 ## Agent guidelines
 
