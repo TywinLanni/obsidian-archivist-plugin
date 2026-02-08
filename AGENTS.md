@@ -7,6 +7,30 @@
 - **Entry point**: `src/main.ts` compiled to `main.js` and loaded by Obsidian
 - **Required release artifacts**: `main.js`, `manifest.json`, `styles.css`
 
+## Related Repositories
+
+| Repository | Path | Description |
+|------------|------|-------------|
+| **ArchivistBot** | `C:\Users\Tywin\IdeaProjects\ArchivistBot` | Telegram bot + REST API (Python, FastAPI, PostgreSQL) |
+
+### Cross-repo workflow
+
+When a feature in this plugin requires corresponding work in the bot:
+
+1. Implement the plugin side (UI, API client calls, types)
+2. Add a task to the bot's `TODO.md` (`C:\Users\Tywin\IdeaProjects\ArchivistBot\TODO.md`)
+3. The task must include:
+   - Description of what the bot needs to implement
+   - Links to the plugin files with the implementation (relative paths from plugin repo root, e.g. `src/api-client.ts`)
+   - Relevant API endpoints or model changes
+
+Example entry in bot TODO.md:
+```markdown
+- [ ] **Feature name** — description of bot-side work.
+  Plugin implementation: `src/....ts`.
+  API: `POST /v1/endpoint`.
+```
+
 ## Architecture
 
 ```
@@ -29,8 +53,8 @@ src/
 |--------|----------------|
 | `main.ts` | Plugin lifecycle (onload/onunload), command registration, ribbon icon, context menu, settings tab, status bar |
 | `settings.ts` | `ArchivistBotSettings` interface, `DEFAULT_SETTINGS`, `ArchivistBotSettingTab` class |
-| `types.ts` | `NoteResponse`, `HealthResponse`, `MarkSyncedRequest`, `MarkSyncedResponse`, `CategoryItem`, `TagsRegistry` |
-| `api-client.ts` | `ArchivistApiClient` class with `health()`, `fetchUnsynced()`, `markSynced()`, `getCategories()`, `updateCategories()`, `getTags()`, `updateTags()` |
+| `types.ts` | Core: `NoteResponse`, `SyncResponse`, `HealthResponse`, `MarkSyncedRequest`, `MarkSyncedResponse`, `CategoryItem`, `CategoriesResponse`, `CategoriesUpdateRequest`, `TagsRegistryResponse`, `TagsUpdateRequest`, `TagsRegistry`. Auth: `TokenPairResponse`, `ErrorResponse`. User/GDPR: `UserSettingsResponse`, `UserSettingsUpdateRequest`, `SessionInfo`, `UserSessionsResponse`, `UserDataExport`, `UserDataDeleteResponse` |
+| `api-client.ts` | `ArchivistApiClient` class with `health()`, `fetchUnsynced()`, `markSynced()`, `pluginInit()`, `getCategories()`, `updateCategories()`, `getTags()`, `updateTags()` |
 | `note-writer.ts` | `NoteWriter` class - creates folders, sanitizes filenames, writes markdown |
 | `sync-engine.ts` | `SyncEngine` class - interval management, sync logic, deduplication |
 | `archiver.ts` | `NoteArchiver` class, `ArchiveModal` - resolution selection, frontmatter update, file move |
@@ -57,7 +81,7 @@ npm run lint         # Run eslint
 
 ## API contract
 
-**Source of truth:** [`ArchivistBot/core/openapi.yaml`](https://github.com/TywinLanni/ArchivistBot/blob/saas-mode/core/openapi.yaml)
+**Source of truth:** [`ArchivistBot/core/openapi.yaml`](https://github.com/TywinLanni/ArchivistBot/blob/master/core/openapi.yaml)
 
 ### Updating types after API changes
 
@@ -97,8 +121,18 @@ Types in `src/types.ts` re-export from generated `src/api-types.ts`:
 | `MarkSyncedResponse` | Count of synced notes |
 | `CategoryItem` | Category name and description |
 | `CategoriesResponse` | Categories array with updated_at |
-| `TagsRegistry` | `{category: {tag: count}}` structure |
+| `CategoriesUpdateRequest` | Request body for updating categories |
 | `TagsRegistryResponse` | Registry with updated_at |
+| `TagsUpdateRequest` | Request body for updating tags |
+| `TagsRegistry` | `{category: {tag: count}}` convenience type |
+| `TokenPairResponse` | Access + refresh token pair (auth) |
+| `ErrorResponse` | Error response with detail message |
+| `UserSettingsResponse` | User settings from server |
+| `UserSettingsUpdateRequest` | Request body for updating user settings |
+| `SessionInfo` | Single session info (device, last_used) |
+| `UserSessionsResponse` | List of user sessions |
+| `UserDataExport` | Full user data export (GDPR) |
+| `UserDataDeleteResponse` | Confirmation of user data deletion (GDPR) |
 
 ## Plugin features
 
@@ -124,7 +158,9 @@ Shows config sync status:
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `endpoint` | string | `http://localhost:8000` | Server URL |
-| `authToken` | string | `""` | Bearer token (optional) |
+| `refreshToken` | string | `""` | Refresh token (obtained via Connect flow in Telegram bot) |
+| `accessToken` | string | `""` | Short-lived access token (auto-refreshed) |
+| `accessTokenExpiresAt` | number | `0` | Access token expiry (unix timestamp ms, 0 = not set) |
 | `syncIntervalSec` | number | `60` | Sync interval (10-300) |
 | `vaultBasePath` | string | `VoiceNotes` | Root folder for notes |
 | `autoSync` | boolean | `true` | Enable automatic sync |

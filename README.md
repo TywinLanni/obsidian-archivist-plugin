@@ -37,13 +37,15 @@ Copy `main.js`, `manifest.json`, and `styles.css` to your vault's plugin folder.
 
 Open **Settings → ArchivistBot** to configure:
 
-| Setting         | Description                                          | Default                 |
-|-----------------|------------------------------------------------------|-------------------------|
-| Server URL      | ArchivistBot API endpoint                            | `http://localhost:8000` |
-| Auth token      | Bearer token for authentication (optional for local) | empty                   |
-| Sync interval   | Seconds between automatic syncs (10-300)             | 60                      |
-| Vault base path | Folder where synced notes are stored                 | `VoiceNotes`            |
-| Auto sync       | Enable/disable automatic sync                        | enabled                 |
+| Setting         | Description                                                              | Default                 |
+|-----------------|--------------------------------------------------------------------------|-------------------------|
+| Server URL      | ArchivistBot API endpoint                                                | `http://localhost:8000` |
+| Refresh token   | Obtained via Connect flow in Telegram bot (`/newtoken` command)          | empty                   |
+| Sync interval   | Seconds between automatic syncs (10-300)                                 | 60                      |
+| Vault base path | Folder where synced notes are stored                                     | `VoiceNotes`            |
+| Auto sync       | Enable/disable automatic sync                                            | enabled                 |
+
+> Access tokens are managed automatically — the plugin refreshes them using the refresh token when needed.
 
 ## Usage
 
@@ -110,7 +112,7 @@ VoiceNotes/
 
 ## API Contract
 
-This plugin implements the [ArchivistBot API](https://github.com/TywinLanni/ArchivistBot/blob/saas-mode/core/openapi.yaml).
+This plugin implements the [ArchivistBot API](https://github.com/TywinLanni/ArchivistBot/blob/master/core/openapi.yaml).
 
 TypeScript types in `src/types.ts` are derived from the OpenAPI spec. To regenerate after API changes:
 
@@ -124,12 +126,16 @@ This fetches the spec from the ArchivistBot repository and generates types using
 
 This plugin connects to your configured ArchivistBot server to:
 - Check server health (`GET /health`)
+- Initialize plugin session (`POST /v1/init`)
+- Refresh access token (`POST /v1/auth/refresh`)
 - Fetch unsynced notes (`GET /v1/notes/unsynced`)
 - Mark notes as synced (`POST /v1/notes/mark-synced`)
 - Fetch categories (`GET /v1/categories`)
 - Update categories (`PUT /v1/categories`)
 - Fetch tags registry (`GET /v1/tags`)
 - Update tags registry (`PUT /v1/tags`)
+- Get user settings (`GET /v1/user/settings`)
+- Update user settings (`PATCH /v1/user/settings`)
 
 No data is sent to third parties. All communication is with your self-hosted or configured server.
 
