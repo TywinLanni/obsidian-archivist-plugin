@@ -37,10 +37,20 @@ const EXPIRY_MARGIN_MS = 60_000;
 
 /** Request timeout per attempt (ms). */
 const TIMEOUT_MS = 3_000;
-/** Maximum retry attempts. */
-const MAX_RETRIES = 5;
-/** Base delay between retries (ms). Doubles each attempt: 20s, 40s, 80s, 160s (~5 min total). */
-const BASE_DELAY_MS = 20_000;
+
+/**
+ * Retry policy for regular API requests.
+ * Short retries — sync engine has its own interval, no need to block for minutes.
+ */
+const REQUEST_MAX_RETRIES = 2;
+const REQUEST_BASE_DELAY_MS = 1_000;
+
+/**
+ * Retry policy for token refresh.
+ * More aggressive — losing the refresh token means user has to re-authenticate.
+ */
+const REFRESH_MAX_RETRIES = 5;
+const REFRESH_BASE_DELAY_MS = 20_000;
 
 /**
  * Single requestUrl call with timeout.
@@ -84,24 +94,29 @@ function isRetryable(error: unknown): boolean {
 
 /**
  * requestUrl with timeout + exponential backoff retry.
- * 3s timeout per attempt, up to 5 attempts, delays: 1s → 2s → 4s → 8s.
+ *
+ * @param params - requestUrl parameters
+ * @param maxRetries - max retry attempts (default: REQUEST_MAX_RETRIES)
+ * @param baseDelayMs - base delay between retries (default: REQUEST_BASE_DELAY_MS)
  */
 async function requestWithRetry(
 	params: RequestUrlParam,
+	maxRetries: number = REQUEST_MAX_RETRIES,
+	baseDelayMs: number = REQUEST_BASE_DELAY_MS,
 ): Promise<import("obsidian").RequestUrlResponse> {
 	let lastError: unknown;
 
-	for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+	for (let attempt = 0; attempt < maxRetries; attempt++) {
 		try {
 			return await timedRequest(params);
 		} catch (e) {
 			lastError = e;
 
-			if (!isRetryable(e) || attempt === MAX_RETRIES - 1) {
+			if (!isRetryable(e) || attempt === maxRetries - 1) {
 				throw e;
 			}
 
-			const delay = BASE_DELAY_MS * 2 ** attempt;
+			const delay = baseDelayMs * 2 ** attempt;
 			await sleep(delay);
 		}
 	}
@@ -182,14 +197,18 @@ export class ArchivistApiClient {
 		}
 
 		try {
-			const resp = await requestWithRetry({
-				url: `${this.baseUrl}/v1/auth/refresh`,
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"Authorization": `Bearer ${settings.refreshToken}`,
+			const resp = await requestWithRetry(
+				{
+					url: `${this.baseUrl}/v1/auth/refresh`,
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						"Authorization": `Bearer ${settings.refreshToken}`,
+					},
 				},
-			});
+				REFRESH_MAX_RETRIES,
+				REFRESH_BASE_DELAY_MS,
+			);
 
 			const data = resp.json as TokenPairResponse;
 

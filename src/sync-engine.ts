@@ -12,11 +12,15 @@ const MAX_BACKOFF_MULTIPLIER = 5;
  * Fetches unsynced notes, writes them to vault, marks as synced.
  * Implements exponential backoff on server errors.
  */
+/** Cooldown after manual sync to prevent button spam (ms). */
+const MANUAL_SYNC_COOLDOWN_MS = 2_000;
+
 export class SyncEngine {
 	private intervalId: number | null = null;
 	private syncing = false;
 	private consecutiveFailures = 0;
 	private baseIntervalSec = 60;
+	private lastManualSyncAt = 0;
 
 	constructor(
 		private client: ArchivistApiClient,
@@ -32,8 +36,22 @@ export class SyncEngine {
 		this.stop();
 		this.baseIntervalSec = intervalSec;
 		this.consecutiveFailures = 0;
-		// Immediate first sync
-		void this.sync();
+		// Immediate first sync, then schedule periodic.
+		// Chain: sync → schedule to avoid overlapping intervals.
+		void this.syncAndSchedule();
+	}
+
+	/**
+	 * Run sync, then (re)schedule the next tick with current backoff.
+	 * This is the single owner of the interval lifecycle.
+	 */
+	private async syncAndSchedule(): Promise<void> {
+		try {
+			await this.sync();
+		} catch {
+			// sync() already tracks consecutiveFailures
+		}
+		// Always schedule next tick (backoff is already updated by sync)
 		this.scheduleNext();
 	}
 
@@ -41,6 +59,12 @@ export class SyncEngine {
 	 * Schedule next sync with backoff on failures.
 	 */
 	private scheduleNext(): void {
+		// Clear any existing interval first
+		if (this.intervalId !== null) {
+			window.clearInterval(this.intervalId);
+			this.intervalId = null;
+		}
+
 		const multiplier = Math.min(
 			2 ** this.consecutiveFailures,
 			2 ** MAX_BACKOFF_MULTIPLIER,
@@ -48,7 +72,7 @@ export class SyncEngine {
 		const intervalMs = this.baseIntervalSec * multiplier * 1000;
 
 		this.intervalId = window.setInterval(
-			() => void this.sync(),
+			() => void this.syncAndSchedule(),
 			intervalMs,
 		);
 		this.registerInterval(this.intervalId);
@@ -65,19 +89,8 @@ export class SyncEngine {
 	}
 
 	/**
-	 * Restart interval with current backoff level.
-	 */
-	private reschedule(): void {
-		if (this.intervalId !== null) {
-			window.clearInterval(this.intervalId);
-			this.intervalId = null;
-		}
-		this.scheduleNext();
-	}
-
-	/**
 	 * Perform a single sync operation.
-	 * Can be called manually or by the interval.
+	 * Does NOT manage intervals — caller is responsible for scheduling.
 	 * @returns Number of notes written (0 = nothing new, -1 = skipped/guard)
 	 */
 	async sync(): Promise<number> {
@@ -91,6 +104,8 @@ export class SyncEngine {
 			const notes = response.notes;
 
 			if (notes.length === 0) {
+				// Success — reset backoff
+				this.consecutiveFailures = 0;
 				return 0;
 			}
 
@@ -126,11 +141,7 @@ export class SyncEngine {
 			}
 
 			// Success — reset backoff
-			if (this.consecutiveFailures > 0) {
-				this.consecutiveFailures = 0;
-				this.reschedule();
-			}
-
+			this.consecutiveFailures = 0;
 			return written.length;
 		} catch (e) {
 			if (e instanceof RefreshTokenExpiredError) {
@@ -144,9 +155,6 @@ export class SyncEngine {
 				`[ArchivistBot] sync error (attempt ${this.consecutiveFailures}):`,
 				e,
 			);
-
-			// Reschedule with backoff
-			this.reschedule();
 			throw e;
 		} finally {
 			this.syncing = false;
@@ -154,13 +162,21 @@ export class SyncEngine {
 	}
 
 	/**
-	 * Manual sync with user-facing feedback.
+	 * Manual sync with user-facing feedback and cooldown.
+	 * Ignores rapid clicks within MANUAL_SYNC_COOLDOWN_MS.
 	 */
 	async manualSync(): Promise<void> {
+		const now = Date.now();
+		if (now - this.lastManualSyncAt < MANUAL_SYNC_COOLDOWN_MS) {
+			return; // Cooldown — silently ignore
+		}
+
 		if (this.syncing) {
 			new Notice("Archivistbot: sync already in progress");
 			return;
 		}
+
+		this.lastManualSyncAt = now;
 
 		try {
 			const count = await this.sync();
