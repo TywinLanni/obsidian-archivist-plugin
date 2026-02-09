@@ -13,11 +13,17 @@ export type NoteResponse = components["schemas"]["NoteResponse"];
 export type SyncResponse = components["schemas"]["SyncResponse"];
 export type MarkSyncedRequest = components["schemas"]["MarkSyncedRequest"];
 export type MarkSyncedResponse = components["schemas"]["MarkSyncedResponse"];
-export type CategoryItem = components["schemas"]["CategoryItem"];
+// CategoryItem: make `reminder` optional for backward compat with 2-column categories.md
+export type CategoryItem = Omit<components["schemas"]["CategoryItem"], "reminder"> & {
+	reminder?: components["schemas"]["CategoryItem"]["reminder"];
+};
 export type CategoriesResponse = components["schemas"]["CategoriesResponse"];
 export type CategoriesUpdateRequest = components["schemas"]["CategoriesUpdateRequest"];
 export type TagsRegistryResponse = components["schemas"]["TagsRegistryResponse"];
 export type TagsUpdateRequest = components["schemas"]["TagsUpdateRequest"];
+export type ReminderSettings = components["schemas"]["ReminderSettings"];
+export type ReconcileArchivedRequest = components["schemas"]["ReconcileArchivedRequest"];
+export type ReconcileArchivedResponse = components["schemas"]["ReconcileArchivedResponse"];
 
 // ── Auth (commercial edition) ──
 export type TokenPairResponse = components["schemas"]["TokenPairResponse"];

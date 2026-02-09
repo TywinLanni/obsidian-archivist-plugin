@@ -176,6 +176,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/notes/reconcile-archived": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconcile archived notes
+         * @description Plugin sends vault_paths of notes currently in _archive/ folder.
+         *     Server removes matching inbox items so they no longer appear in digests.
+         */
+        post: operations["reconcileArchived"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/user/settings": {
         parameters: {
             query?: never;
@@ -284,7 +305,8 @@ export interface components {
             synced_at?: string | null;
             /**
              * @description Vault file path to append to (when this note is a reply/addition
-             *     to an already-synced note). Null for standalone notes.
+             *     to an already-synced note). Resolved from parent_note_id at query
+             *     time. Null for standalone notes or when parent not yet synced.
              */
             append_to?: string | null;
         };
@@ -313,6 +335,12 @@ export interface components {
             name: string;
             /** @description Human-readable category description */
             description: string;
+            /**
+             * @description Digest reminder frequency for this category
+             * @default weekly
+             * @enum {string}
+             */
+            reminder: "off" | "daily" | "weekly" | "monthly";
         };
         CategoriesResponse: {
             categories: components["schemas"]["CategoryItem"][];
@@ -357,6 +385,27 @@ export interface components {
                 };
             };
         };
+        ReminderSettings: {
+            /** @default true */
+            enabled: boolean;
+            /**
+             * @description Hour to send digests (0-23, user's timezone)
+             * @default 9
+             */
+            send_time: number;
+            /**
+             * @description IANA timezone (e.g. "Europe/Amsterdam"). Null = UTC.
+             * @default null
+             */
+            timezone: string | null;
+            /**
+             * @default monday
+             * @enum {string}
+             */
+            weekly_day: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+            /** @default 1 */
+            monthly_day: number;
+        };
         UserSettingsResponse: {
             /**
              * @description Days to keep synced notes on server before automatic deletion.
@@ -364,6 +413,7 @@ export interface components {
              * @example 7
              */
             data_retention_days: number;
+            reminders?: components["schemas"]["ReminderSettings"];
         };
         UserSettingsUpdateRequest: {
             /**
@@ -371,6 +421,15 @@ export interface components {
              *     0 = delete immediately after sync.
              */
             data_retention_days?: number;
+            reminders?: components["schemas"]["ReminderSettings"];
+        };
+        ReconcileArchivedRequest: {
+            /** @description List of vault_paths currently in _archive/ folder */
+            vault_paths: string[];
+        };
+        ReconcileArchivedResponse: {
+            /** @description Number of inbox items removed */
+            removed_count: number;
         };
         ErrorResponse: {
             /** @description Error message */
@@ -704,6 +763,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TagsRegistryResponse"];
                 };
+            };
+        };
+    };
+    reconcileArchived: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReconcileArchivedRequest"];
+            };
+        };
+        responses: {
+            /** @description Archived notes reconciled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconcileArchivedResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
