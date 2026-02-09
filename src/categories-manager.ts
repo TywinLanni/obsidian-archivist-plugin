@@ -5,18 +5,18 @@ import type { CategoryItem } from "./types";
 const CATEGORIES_FILENAME = "categories.md";
 
 const DEFAULT_CATEGORIES: CategoryItem[] = [
-	{ name: "work", description: "Рабочие задачи (общее)" },
-	{ name: "work/meetings", description: "Встречи, созвоны, митинги" },
-	{ name: "work/tasks", description: "Текущие рабочие задачи" },
-	{ name: "ideas", description: "Идеи, мысли, концепции" },
-	{ name: "personal", description: "Личные заметки, дневник" },
-	{ name: "projects", description: "Проекты вне работы (общее)" },
-	{ name: "projects/coding", description: "Программирование, пет-проекты" },
-	{ name: "projects/hobby", description: "Хобби-проекты" },
-	{ name: "health", description: "Здоровье, спорт, питание" },
-	{ name: "learning", description: "Обучение, книги, курсы" },
-	{ name: "creative", description: "Творчество, музыка, искусство" },
-	{ name: "finance", description: "Финансы, бюджет, инвестиции" },
+	{ name: "work", description: "Рабочие задачи (общее)", reminder: "daily" },
+	{ name: "work/meetings", description: "Встречи, созвоны, митинги", reminder: "daily" },
+	{ name: "work/tasks", description: "Текущие рабочие задачи", reminder: "daily" },
+	{ name: "ideas", description: "Идеи, мысли, концепции", reminder: "weekly" },
+	{ name: "personal", description: "Личные заметки, дневник", reminder: "weekly" },
+	{ name: "projects", description: "Проекты вне работы (общее)", reminder: "weekly" },
+	{ name: "projects/coding", description: "Программирование, пет-проекты", reminder: "weekly" },
+	{ name: "projects/hobby", description: "Хобби-проекты", reminder: "monthly" },
+	{ name: "health", description: "Здоровье, спорт, питание", reminder: "weekly" },
+	{ name: "learning", description: "Обучение, книги, курсы", reminder: "weekly" },
+	{ name: "creative", description: "Творчество, музыка, искусство", reminder: "monthly" },
+	{ name: "finance", description: "Финансы, бюджет, инвестиции", reminder: "monthly" },
 ];
 
 /**
@@ -104,7 +104,13 @@ export class CategoriesManager {
 	}
 
 	/**
+	 * Valid reminder values for type-safe parsing.
+	 */
+	private static readonly VALID_REMINDERS = new Set(["off", "daily", "weekly", "monthly"]);
+
+	/**
 	 * Parse markdown table into CategoryItem array.
+	 * Supports both 2-column (name, description) and 3-column (name, description, reminder) tables.
 	 */
 	private parseMarkdown(content: string): CategoryItem[] {
 		const categories: CategoryItem[] = [];
@@ -122,12 +128,17 @@ export class CategoriesManager {
 			}
 
 			const parts = trimmed.split("|").map((p) => p.trim());
-			// parts[0] is empty (before first |), parts[1] is name, parts[2] is description
+			// parts[0] is empty (before first |), parts[1] is name, parts[2] is description, parts[3] is reminder
 			if (parts.length >= 3 && parts[1]) {
-				categories.push({
+				const cat: CategoryItem = {
 					name: parts[1],
 					description: parts[2] || "",
-				});
+				};
+				// 3-column table: parse reminder if present and valid
+				if (parts.length >= 4 && parts[3] && CategoriesManager.VALID_REMINDERS.has(parts[3])) {
+					cat.reminder = parts[3] as CategoryItem["reminder"];
+				}
+				categories.push(cat);
 			}
 		}
 
@@ -135,16 +146,17 @@ export class CategoriesManager {
 	}
 
 	/**
-	 * Format categories as markdown table.
+	 * Format categories as markdown table (3-column with Reminder).
 	 */
 	private formatAsMarkdown(categories: CategoryItem[]): string {
 		const lines = [
-			"| Category | Description |",
-			"|----------|-------------|",
+			"| Category | Description | Reminder |",
+			"|----------|-------------|----------|",
 		];
 
 		for (const cat of categories) {
-			lines.push(`| ${cat.name} | ${cat.description} |`);
+			const reminder = cat.reminder || "weekly";
+			lines.push(`| ${cat.name} | ${cat.description} | ${reminder} |`);
 		}
 
 		return lines.join("\n") + "\n";
