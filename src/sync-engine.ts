@@ -3,6 +3,7 @@ import { Notice } from "obsidian";
 import { RefreshTokenExpiredError } from "./api-client";
 import type { ArchivistApiClient } from "./api-client";
 import type { NoteWriter } from "./note-writer";
+import type { NoteResponse } from "./types";
 
 /** Max consecutive failures before stopping backoff growth. */
 const MAX_BACKOFF_MULTIPLIER = 5;
@@ -138,9 +139,13 @@ export class SyncEngine {
 			const syncedIds: string[] = [];
 			const vaultPaths: Record<string, string> = {};
 
+			// Build sibling map for smart-split notes (same source_batch_id)
+			const batchSiblings = buildBatchSiblings(notes);
+
 			for (const note of notes) {
 				try {
-					const path = await this.writer.write(note);
+					const siblings = batchSiblings.get(note.id);
+					const path = await this.writer.write(note, siblings);
 					if (path) {
 						written.push(path);
 						vaultPaths[note.id] = path;
@@ -239,4 +244,39 @@ export class SyncEngine {
 			throw e;
 		}
 	}
+}
+
+/**
+ * Build a map: note.id → sibling note names (excluding self).
+ *
+ * Groups notes by `source_batch_id`. Notes without a batch ID get no siblings.
+ * Used to generate wikilink cross-references between smart-split notes.
+ */
+export function buildBatchSiblings(notes: NoteResponse[]): Map<string, string[]> {
+	const result = new Map<string, string[]>();
+
+	// Group by source_batch_id
+	const batches = new Map<string, NoteResponse[]>();
+	for (const note of notes) {
+		if (!note.source_batch_id) continue;
+		const group = batches.get(note.source_batch_id);
+		if (group) {
+			group.push(note);
+		} else {
+			batches.set(note.source_batch_id, [note]);
+		}
+	}
+
+	// Build sibling lists (excluding self, only for batches with 2+ notes)
+	for (const group of batches.values()) {
+		if (group.length < 2) continue;
+		for (const note of group) {
+			result.set(
+				note.id,
+				group.filter((n) => n.id !== note.id).map((n) => n.name),
+			);
+		}
+	}
+
+	return result;
 }

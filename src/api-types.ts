@@ -309,6 +309,13 @@ export interface components {
              *     time. Null for standalone notes or when parent not yet synced.
              */
             append_to?: string | null;
+            /**
+             * @description Batch ID linking notes created from the same message (smart split).
+             *     Format: {date}_{time}_{short_id}. Null for non-split notes.
+             */
+            source_batch_id?: string | null;
+            /** @description Extracted action items / tasks (may be empty) */
+            action_items?: string[];
         };
         SyncResponse: {
             notes: components["schemas"]["NoteResponse"][];
