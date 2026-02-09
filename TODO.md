@@ -6,17 +6,18 @@
 
 ## Текущая стадия готовности
 
-| Компонент                                         | Статус  | Комментарий                                                          |
-|---------------------------------------------------|---------|----------------------------------------------------------------------|
-| **Sync engine** — pull notes, mark synced         | ✅ Готов | Auto-sync, per-note error handling, backoff при consecutive failures |
-| **Note writer** — markdown + frontmatter          | ✅ Готов | Дедупликация, sanitize, frontmatter через `stringifyYaml()`          |
-| **Archiver** — modal + move to _archive           | ✅ Готов | Resolution selection                                                 |
-| **Config sync** — categories + tags bidirectional | ✅ Готов | File watcher, debounce, status bar, cleanup через `destroy()`        |
-| **Settings UI**                                   | ✅ Готов | Endpoint, token, interval, basePath                                  |
-| **Auth (JWT refresh)**                            | ✅ Готов | Proactive refresh, retry on 401, `RefreshTokenExpiredError` → Notice |
-| **API client** — requestUrl + retry               | ✅ Готов | 3s timeout, 5 attempts, exponential backoff, smart retry (skip 4xx)  |
-| **Тесты**                                         | ✅ Готов | 49 unit-тестов (vitest): categories, tags, note-writer, sync-engine  |
-| **Публикация в Community Plugins**                | ❌ Нет   |                                                                      |
+| Компонент                                         | Статус  | Комментарий                                                                |
+|---------------------------------------------------|---------|----------------------------------------------------------------------------|
+| **Sync engine** — pull notes, mark synced         | ✅ Готов | Auto-sync, per-note error handling, backoff при consecutive failures       |
+| **Note writer** — markdown + frontmatter          | ✅ Готов | Дедупликация, sanitize, frontmatter через `stringifyYaml()`                |
+| **Archiver** — modal + move to _archive           | ✅ Готов | Resolution selection                                                       |
+| **Config sync** — categories + tags bidirectional | ✅ Готов | File watcher, debounce, status bar, cleanup через `destroy()`              |
+| **Settings UI**                                   | ✅ Готов | Endpoint, token, interval, basePath                                        |
+| **Auth (JWT refresh)**                            | ✅ Готов | Proactive refresh, retry on 401, `RefreshTokenExpiredError` → Notice       |
+| **API client** — requestUrl + retry               | ✅ Готов | 3s timeout, 5 attempts, exponential backoff, smart retry (skip 4xx)        |
+| **Smart split + action items**                    | ✅ Готов | action_items → чекбоксы, source_batch_id → wikilinks между split-заметками |
+| **Тесты**                                         | ✅ Готов | 64 unit-теста (vitest): categories, tags, note-writer, sync-engine         |
+| **Публикация в Community Plugins**                | ❌ Нет   |                                                                            |
 
 ---
 
@@ -25,7 +26,7 @@
 ### Фаза 1 — MVP ✅
 
 - [x] **JWT refresh flow** — `refreshToken` + `accessToken` в settings, proactive refresh (60s margin), `POST /v1/auth/refresh`, `RefreshTokenExpiredError` с Notice пользователю.
-- [x] **Тесты** — 34 unit-теста: `CategoriesManager` (7), `TagsManager` (8), `NoteWriter` (14), `SyncEngine` (5). Vitest + mock Obsidian API.
+- [x] **Тесты** — 64 unit-теста: `CategoriesManager` (11), `TagsManager` (8), `NoteWriter` (27), `SyncEngine` (18). Vitest + mock Obsidian API.
 - [x] **Error handling в sync** — per-note try/catch (failed write не помечает synced), backoff при consecutive failures (×2 до ×32), retry + уведомление.
 - [x] **Request reliability** — 3s timeout, 5 attempts, exponential backoff (~5 min total), smart retry (только timeout/network/5xx/408/429).
 - [x] **YAML handling** — `parseYaml()`/`stringifyYaml()` из Obsidian API вместо ручного парсинга (tags-manager, note-writer).
@@ -48,6 +49,9 @@
   API: `GET/PATCH /v1/user/settings` — поле `reminders` (see `commercial/src/archivistbot_commercial/api_server.py`, `core/openapi.yaml` — `ReminderSettings` schema).
 - [x] **Digest reminders — archive reconciliation** — при каждой синхронизации сканировать `_archive/` и отправлять `POST /v1/notes/reconcile-archived` с vault_paths архивированных заметок, чтобы убрать их из дайджестов.
   API: `POST /v1/notes/reconcile-archived` (see `commercial/src/archivistbot_commercial/api_server.py`).
+- [x] **Smart split + action items** — `NoteResponse` получил поля `source_batch_id` (nullable string) и `action_items` (string[]). NoteWriter: action_items во frontmatter + секция «Задачи» с чекбоксами (`- [ ]`), source_batch_id во frontmatter + секция «Связанные заметки» с wikilinks на sibling-заметки. SyncEngine: `buildBatchSiblings()` группирует заметки по `source_batch_id` и передаёт имена siblings в writer.
+  Bot implementation: `core/src/archivistbot_core/models/note.py` (SplitResult, action_items), `core/src/archivistbot_core/handlers/messages.py` (split flow), `commercial/src/archivistbot_commercial/llm_claude.py` (split_and_categorize).
+  API: `GET /v1/notes/unsynced` returns `source_batch_id`, `action_items` (see `core/openapi.yaml`, `commercial/src/archivistbot_commercial/api_server.py`).
 - [ ] **Настраиваемый промпт** — пользователь может добавить extra instructions для категоризации (md-файл рядом с categories.md или в настройках плагина).
 - [ ] **Публикация плагина** — подготовить для Obsidian Community Plugins: README, manifest, review process.
 
