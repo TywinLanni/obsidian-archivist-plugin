@@ -18,6 +18,9 @@ const MANUAL_SYNC_COOLDOWN_MS = 2_000;
 /** Callback that returns vault_paths of archived notes (files in _archive/). */
 export type ArchiveScanner = () => Promise<string[]>;
 
+/** Called when SyncEngine successfully reaches the server after being offline. */
+export type OnServerReachable = () => void;
+
 export class SyncEngine {
 	private intervalId: number | null = null;
 	private syncing = false;
@@ -25,6 +28,7 @@ export class SyncEngine {
 	private baseIntervalSec = 60;
 	private lastManualSyncAt = 0;
 	private archiveScanner: ArchiveScanner | null = null;
+	private onServerReachable: OnServerReachable | null = null;
 
 	constructor(
 		private client: ArchivistApiClient,
@@ -38,6 +42,14 @@ export class SyncEngine {
 	 */
 	setArchiveScanner(scanner: ArchiveScanner): void {
 		this.archiveScanner = scanner;
+	}
+
+	/**
+	 * Set callback invoked when server becomes reachable after failures.
+	 * Used to re-initialize config sync after offline → online transition.
+	 */
+	setOnServerReachable(callback: OnServerReachable): void {
+		this.onServerReachable = callback;
 	}
 
 	/**
@@ -116,8 +128,9 @@ export class SyncEngine {
 			const notes = response.notes;
 
 			if (notes.length === 0) {
-				// Success — reset backoff
+				// Success — reset backoff, notify listener
 				this.consecutiveFailures = 0;
+				this.onServerReachable?.();
 				return 0;
 			}
 
@@ -155,8 +168,9 @@ export class SyncEngine {
 			// Reconcile archived notes with server (removes from digest inbox)
 			await this.reconcileArchived();
 
-			// Success — reset backoff
+			// Success — reset backoff, notify listener
 			this.consecutiveFailures = 0;
+			this.onServerReachable?.();
 			return written.length;
 		} catch (e) {
 			if (e instanceof RefreshTokenExpiredError) {

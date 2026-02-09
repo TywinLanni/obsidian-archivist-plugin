@@ -40,6 +40,13 @@ export default class ArchivistBotPlugin extends Plugin {
 		);
 
 		this.syncEngine.setArchiveScanner(() => this.scanArchivedPaths());
+		this.syncEngine.setOnServerReachable(() => {
+			// Server came back online — re-initialize config sync
+			// so status bar transitions from ⚫ offline → 🟢 synced
+			if (this.configSync.getStatus() === "offline") {
+				void this.configSync.initialize();
+			}
+		});
 
 		this.archiver = new NoteArchiver(
 			this.app,
