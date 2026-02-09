@@ -15,18 +15,30 @@ const MAX_BACKOFF_MULTIPLIER = 5;
 /** Cooldown after manual sync to prevent button spam (ms). */
 const MANUAL_SYNC_COOLDOWN_MS = 2_000;
 
+/** Callback that returns vault_paths of archived notes (files in _archive/). */
+export type ArchiveScanner = () => Promise<string[]>;
+
 export class SyncEngine {
 	private intervalId: number | null = null;
 	private syncing = false;
 	private consecutiveFailures = 0;
 	private baseIntervalSec = 60;
 	private lastManualSyncAt = 0;
+	private archiveScanner: ArchiveScanner | null = null;
 
 	constructor(
 		private client: ArchivistApiClient,
 		private writer: NoteWriter,
 		private registerInterval: (id: number) => void
 	) {}
+
+	/**
+	 * Set archive scanner for reconciliation during sync.
+	 * When set, each sync cycle will also reconcile archived notes with the server.
+	 */
+	setArchiveScanner(scanner: ArchiveScanner): void {
+		this.archiveScanner = scanner;
+	}
 
 	/**
 	 * Start periodic sync.
@@ -140,6 +152,9 @@ export class SyncEngine {
 				new Notice(`Archivistbot: synced ${written.length} note(s)`);
 			}
 
+			// Reconcile archived notes with server (removes from digest inbox)
+			await this.reconcileArchived();
+
 			// Success — reset backoff
 			this.consecutiveFailures = 0;
 			return written.length;
@@ -158,6 +173,27 @@ export class SyncEngine {
 			throw e;
 		} finally {
 			this.syncing = false;
+		}
+	}
+
+	/**
+	 * Reconcile archived notes with server.
+	 * Scans _archive/ folder and tells server which vault_paths are archived,
+	 * so they can be removed from digest inbox.
+	 */
+	private async reconcileArchived(): Promise<void> {
+		if (!this.archiveScanner) {
+			return;
+		}
+
+		try {
+			const archivedPaths = await this.archiveScanner();
+			if (archivedPaths.length > 0) {
+				await this.client.reconcileArchived(archivedPaths);
+			}
+		} catch (e) {
+			// Non-critical — log and continue, don't break sync
+			console.error("[ArchivistBot] archive reconciliation failed:", e);
 		}
 	}
 
