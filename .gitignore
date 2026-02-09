@@ -23,3 +23,5 @@ data.json
 
 # OpenAPI spec (fetched from ArchivistBot repo, not committed)
 openapi.yaml
+
+nul
