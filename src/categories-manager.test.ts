@@ -135,6 +135,38 @@ describe("CategoriesManager", () => {
 			expect(result[0].calendar).toBeUndefined();
 		});
 
+		it("does not parse separator lines as categories", async () => {
+			const { vault, manager } = createManager();
+			const content = [
+				"| Category | Description | Reminder | Calendar |",
+				"| ---------- | ------------- | ---------- | ---------- |",
+				"| work | Work stuff | daily | google |",
+				"",
+			].join("\n");
+			(vault as any)._addFile("VoiceNotes/categories.md", content);
+
+			const result = await manager.read();
+
+			expect(result).toHaveLength(1);
+			expect(result[0].name).toBe("work");
+		});
+
+		it("does not parse colon-aligned separator lines", async () => {
+			const { vault, manager } = createManager();
+			const content = [
+				"| Category | Description | Reminder |",
+				"| :--- | :--- | :--- |",
+				"| work | Work stuff | daily |",
+				"",
+			].join("\n");
+			(vault as any)._addFile("VoiceNotes/categories.md", content);
+
+			const result = await manager.read();
+
+			expect(result).toHaveLength(1);
+			expect(result[0].name).toBe("work");
+		});
+
 		it("ignores invalid reminder values", async () => {
 			const { vault, manager } = createManager();
 			const content = [

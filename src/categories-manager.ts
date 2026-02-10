@@ -123,18 +123,23 @@ export class CategoriesManager {
 
 		for (const line of lines) {
 			const trimmed = line.trim();
-			// Skip header and separator lines
+			// Skip non-table and header lines
 			if (
 				!trimmed.startsWith("|") ||
-				trimmed.startsWith("| Category") ||
-				trimmed.startsWith("|---")
+				trimmed.startsWith("| Category")
 			) {
 				continue;
 			}
 
 			const parts = trimmed.split("|").map((p) => p.trim());
 			// parts[0] is empty (before first |), parts[1] is name, parts[2] is description, parts[3] is reminder, parts[4] is calendar
-			if (parts.length >= 3 && parts[1]) {
+
+			// Skip separator lines: |---|---|---| or | --- | --- | or |:---|:---|
+			if (!parts[1] || /^:?-+:?$/.test(parts[1])) {
+				continue;
+			}
+
+			if (parts.length >= 3) {
 				const cat: CategoryItem = {
 					name: parts[1],
 					description: parts[2] || "",
