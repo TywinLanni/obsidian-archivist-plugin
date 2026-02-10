@@ -17,6 +17,8 @@ export class ConfigSync {
 	private status: SyncStatus = "pending";
 	private debounceTimer: number | null = null;
 	private onStatusChange: ((status: SyncStatus) => void) | null = null;
+	private lastPushedCategories = "";
+	private lastPushedTags = "";
 
 	constructor(
 		private vault: Vault,
@@ -133,7 +135,7 @@ export class ConfigSync {
 		this.debounceTimer = window.setTimeout(() => {
 			this.debounceTimer = null;
 			void this.pushToServer(filePath);
-		}, 1000); // 1 second debounce
+		}, 2000); // 2 second debounce
 	}
 
 	/**
@@ -144,10 +146,12 @@ export class ConfigSync {
 			// Fetch categories
 			const categoriesResponse = await this.client.getCategories();
 			await this.categoriesManager.write(categoriesResponse.categories);
+			this.lastPushedCategories = JSON.stringify(categoriesResponse.categories);
 
 			// Fetch tags
 			const tagsResponse = await this.client.getTags();
 			await this.tagsManager.write(tagsResponse.registry);
+			this.lastPushedTags = JSON.stringify(tagsResponse.registry);
 
 			this.setStatus("synced");
 		} catch (e) {
@@ -172,11 +176,23 @@ export class ConfigSync {
 
 			if (filePath === categoriesPath) {
 				const categories = await this.categoriesManager.read();
+				const hash = JSON.stringify(categories);
+				if (hash === this.lastPushedCategories) {
+					this.setStatus("synced");
+					return;
+				}
 				await this.client.updateCategories(categories);
+				this.lastPushedCategories = hash;
 				new Notice("Categories synced to server");
 			} else if (filePath === tagsPath) {
 				const registry = await this.tagsManager.read();
+				const hash = JSON.stringify(registry);
+				if (hash === this.lastPushedTags) {
+					this.setStatus("synced");
+					return;
+				}
 				await this.client.updateTags(registry);
+				this.lastPushedTags = hash;
 				new Notice("Tags synced to server");
 			}
 

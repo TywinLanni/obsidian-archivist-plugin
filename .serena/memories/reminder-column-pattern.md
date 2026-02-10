@@ -290,6 +290,21 @@ it("ignores invalid reminder values", async () => {
 });
 ```
 
+## 8. Validation Notices
+
+When `parseMarkdown()` encounters a non-empty value that is NOT in the valid set, it shows an Obsidian `Notice`:
+
+```typescript
+new Notice(`⚠️ Invalid reminder "${parts[3]}" for category "${parts[1]}" — ignored`);
+new Notice(`⚠️ Invalid calendar "${parts[4]}" for category "${parts[1]}" — ignored`);
+```
+
+**Testing pattern:**
+- Mock Notice in `__mocks__/obsidian.ts` has `static calls: string[]` that records all constructor messages
+- In tests: `beforeEach(() => { Notice.calls = []; })` to reset
+- Assert: `expect(Notice.calls).toHaveLength(N)` and `expect(Notice.calls[0]).toContain("...")`
+- Empty values (whitespace-only cells) do NOT trigger Notice — only non-empty invalid values do
+
 ## Summary: Pattern for Adding New Column
 
 To add a `calendar` column following the exact same pattern:
