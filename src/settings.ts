@@ -163,7 +163,7 @@ export class ArchivistBotSettingTab extends PluginSettingTab {
 		const loadingEl = containerEl.createDiv({ text: "Loading reminder settings..." });
 
 		// Load settings from server asynchronously
-		void this.plugin.getUserSettings().then((response) => {
+		void this.plugin.getUserSettings().then(async (response) => {
 			loadingEl.remove();
 
 			const reminders: ReminderSettings = response.reminders ?? {
@@ -173,6 +173,15 @@ export class ArchivistBotSettingTab extends PluginSettingTab {
 				weekly_day: "monday",
 				monthly_day: 1,
 			};
+
+			// If server had no reminder settings, push device defaults (incl. timezone)
+			if (response.reminders == null) {
+				try {
+					await this.plugin.updateUserSettings({ reminders });
+				} catch (e) {
+					console.error("[ArchivistBot] Failed to push default reminder settings:", e);
+				}
+			}
 
 			// Helper to save a partial update
 			const saveReminder = async (patch: Partial<ReminderSettings>): Promise<void> => {
