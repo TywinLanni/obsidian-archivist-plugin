@@ -9,6 +9,9 @@ import type {
 	TagsRegistryResponse,
 	TagsRegistry,
 	TokenPairResponse,
+	ReconcileArchivedResponse,
+	UserSettingsResponse,
+	UserSettingsUpdateRequest,
 } from "./types";
 import type { ArchivistBotSettings } from "./settings";
 
@@ -348,6 +351,32 @@ export class ArchivistApiClient {
 			url: `${this.baseUrl}/v1/tags`,
 			method: "PUT",
 			body: JSON.stringify({ registry }),
+		});
+	}
+
+	// ── Archive reconciliation ──
+
+	async reconcileArchived(vaultPaths: string[]): Promise<ReconcileArchivedResponse> {
+		return this.request<ReconcileArchivedResponse>({
+			url: `${this.baseUrl}/v1/notes/reconcile-archived`,
+			method: "POST",
+			body: JSON.stringify({ vault_paths: vaultPaths }),
+		});
+	}
+
+	// ── User settings ──
+
+	async getUserSettings(): Promise<UserSettingsResponse> {
+		return this.request<UserSettingsResponse>({
+			url: `${this.baseUrl}/v1/user/settings`,
+		});
+	}
+
+	async updateUserSettings(settings: UserSettingsUpdateRequest): Promise<UserSettingsResponse> {
+		return this.request<UserSettingsResponse>({
+			url: `${this.baseUrl}/v1/user/settings`,
+			method: "PATCH",
+			body: JSON.stringify(settings),
 		});
 	}
 }

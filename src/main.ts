@@ -1,5 +1,5 @@
 // src/main.ts
-import { Plugin, Notice, TFile, MarkdownView } from "obsidian";
+import { Plugin, Notice, TFile, TFolder, MarkdownView } from "obsidian";
 import {
 	ArchivistBotSettings,
 	DEFAULT_SETTINGS,
@@ -38,6 +38,15 @@ export default class ArchivistBotPlugin extends Plugin {
 			this.writer,
 			(id) => this.registerInterval(id)
 		);
+
+		this.syncEngine.setArchiveScanner(() => this.scanArchivedPaths());
+		this.syncEngine.setOnServerReachable(() => {
+			// Server came back online — re-initialize config sync
+			// so status bar transitions from ⚫ offline → 🟢 synced
+			if (this.configSync.getStatus() === "offline") {
+				void this.configSync.initialize();
+			}
+		});
 
 		this.archiver = new NoteArchiver(
 			this.app,
@@ -247,6 +256,50 @@ export default class ArchivistBotPlugin extends Plugin {
 			this.stopSync();
 			this.startSync();
 		}
+	}
+
+	/**
+	 * Scan _archive/ folder and return original vault_paths for reconciliation.
+	 * Converts archive paths back to original paths by removing /_archive/ segment.
+	 */
+	private async scanArchivedPaths(): Promise<string[]> {
+		const archiveDir = `${this.settings.vaultBasePath}/_archive`;
+		const folder = this.app.vault.getAbstractFileByPath(archiveDir);
+		if (!(folder instanceof TFolder)) {
+			return [];
+		}
+
+		const paths: string[] = [];
+		const collectFiles = (f: TFolder): void => {
+			for (const child of f.children) {
+				if (child instanceof TFile && child.extension === "md") {
+					// Convert: VoiceNotes/_archive/work/note.md → VoiceNotes/work/note.md
+					const originalPath = child.path.replace("/_archive/", "/");
+					paths.push(originalPath);
+				} else if (child instanceof TFolder) {
+					collectFiles(child);
+				}
+			}
+		};
+		collectFiles(folder);
+
+		return paths;
+	}
+
+	/**
+	 * Get user settings from server (for settings UI).
+	 */
+	async getUserSettings(): ReturnType<ArchivistApiClient["getUserSettings"]> {
+		return this.client.getUserSettings();
+	}
+
+	/**
+	 * Update user settings on server (for settings UI).
+	 */
+	async updateUserSettings(
+		...args: Parameters<ArchivistApiClient["updateUserSettings"]>
+	): ReturnType<ArchivistApiClient["updateUserSettings"]> {
+		return this.client.updateUserSettings(...args);
 	}
 
 	async loadSettings(): Promise<void> {

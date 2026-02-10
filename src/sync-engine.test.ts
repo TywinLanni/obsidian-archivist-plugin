@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ArchivistApiClient } from "./api-client";
 import type { NoteWriter } from "./note-writer";
 import type { NoteResponse, SyncResponse, MarkSyncedResponse } from "./types";
-import { SyncEngine } from "./sync-engine";
+import { SyncEngine, buildBatchSiblings } from "./sync-engine";
 
 function makeNote(id: string): NoteResponse {
 	return {
@@ -263,6 +263,42 @@ describe("SyncEngine", () => {
 			vi.unstubAllGlobals();
 		});
 
+		it("passes sibling names to writer for split notes", async () => {
+			const notes = [
+				{ ...makeNote("1"), name: "Work task", source_batch_id: "batch_001" },
+				{ ...makeNote("2"), name: "Shopping list", source_batch_id: "batch_001" },
+				makeNote("3"), // standalone, no batch
+			];
+			const writeResults = ["path/1.md", "path/2.md", "path/3.md"];
+			const writeCalls: { note: NoteResponse; siblings: string[] | undefined }[] = [];
+
+			const client = {
+				fetchUnsynced: vi.fn(async () => ({
+					notes,
+					server_time: "2026-02-07T10:00:00Z",
+				})),
+				markSynced: vi.fn(async () => ({ synced_count: 3 })),
+			} as unknown as ArchivistApiClient;
+
+			let writeIdx = 0;
+			const writer = {
+				write: vi.fn(async (note: NoteResponse, siblings?: string[]) => {
+					writeCalls.push({ note, siblings });
+					return writeResults[writeIdx++] ?? null;
+				}),
+			} as unknown as NoteWriter;
+
+			const engine = new SyncEngine(client, writer, () => {});
+			await engine.sync();
+
+			// Note "1" should get sibling ["Shopping list"]
+			expect(writeCalls[0].siblings).toEqual(["Shopping list"]);
+			// Note "2" should get sibling ["Work task"]
+			expect(writeCalls[1].siblings).toEqual(["Work task"]);
+			// Note "3" has no batch — undefined
+			expect(writeCalls[2].siblings).toBeUndefined();
+		});
+
 		it("returns immediately when syncing is in progress", async () => {
 			let resolveSync: () => void;
 			const blockingPromise = new Promise<void>((r) => { resolveSync = r; });
@@ -290,5 +326,70 @@ describe("SyncEngine", () => {
 			resolveSync!();
 			await bgSync;
 		});
+	});
+});
+
+describe("buildBatchSiblings", () => {
+	it("groups notes by source_batch_id", () => {
+		const notes: NoteResponse[] = [
+			{ ...makeNote("1"), name: "Note A", source_batch_id: "batch_1" },
+			{ ...makeNote("2"), name: "Note B", source_batch_id: "batch_1" },
+			{ ...makeNote("3"), name: "Note C", source_batch_id: "batch_1" },
+		];
+
+		const result = buildBatchSiblings(notes);
+
+		expect(result.get("1")).toEqual(["Note B", "Note C"]);
+		expect(result.get("2")).toEqual(["Note A", "Note C"]);
+		expect(result.get("3")).toEqual(["Note A", "Note B"]);
+	});
+
+	it("returns empty map for notes without batch IDs", () => {
+		const notes: NoteResponse[] = [makeNote("1"), makeNote("2")];
+
+		const result = buildBatchSiblings(notes);
+
+		expect(result.size).toBe(0);
+	});
+
+	it("ignores single-note batches", () => {
+		const notes: NoteResponse[] = [
+			{ ...makeNote("1"), name: "Solo", source_batch_id: "batch_1" },
+			makeNote("2"),
+		];
+
+		const result = buildBatchSiblings(notes);
+
+		expect(result.size).toBe(0);
+	});
+
+	it("handles multiple batches independently", () => {
+		const notes: NoteResponse[] = [
+			{ ...makeNote("1"), name: "A1", source_batch_id: "batch_a" },
+			{ ...makeNote("2"), name: "A2", source_batch_id: "batch_a" },
+			{ ...makeNote("3"), name: "B1", source_batch_id: "batch_b" },
+			{ ...makeNote("4"), name: "B2", source_batch_id: "batch_b" },
+		];
+
+		const result = buildBatchSiblings(notes);
+
+		expect(result.get("1")).toEqual(["A2"]);
+		expect(result.get("2")).toEqual(["A1"]);
+		expect(result.get("3")).toEqual(["B2"]);
+		expect(result.get("4")).toEqual(["B1"]);
+	});
+
+	it("handles mix of batched and standalone notes", () => {
+		const notes: NoteResponse[] = [
+			{ ...makeNote("1"), name: "Batched 1", source_batch_id: "batch_x" },
+			makeNote("2"), // standalone
+			{ ...makeNote("3"), name: "Batched 2", source_batch_id: "batch_x" },
+		];
+
+		const result = buildBatchSiblings(notes);
+
+		expect(result.get("1")).toEqual(["Batched 2"]);
+		expect(result.get("3")).toEqual(["Batched 1"]);
+		expect(result.has("2")).toBe(false);
 	});
 });

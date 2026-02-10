@@ -3,6 +3,7 @@ import { Notice } from "obsidian";
 import { RefreshTokenExpiredError } from "./api-client";
 import type { ArchivistApiClient } from "./api-client";
 import type { NoteWriter } from "./note-writer";
+import type { NoteResponse } from "./types";
 
 /** Max consecutive failures before stopping backoff growth. */
 const MAX_BACKOFF_MULTIPLIER = 5;
@@ -15,18 +16,42 @@ const MAX_BACKOFF_MULTIPLIER = 5;
 /** Cooldown after manual sync to prevent button spam (ms). */
 const MANUAL_SYNC_COOLDOWN_MS = 2_000;
 
+/** Callback that returns vault_paths of archived notes (files in _archive/). */
+export type ArchiveScanner = () => Promise<string[]>;
+
+/** Called when SyncEngine successfully reaches the server after being offline. */
+export type OnServerReachable = () => void;
+
 export class SyncEngine {
 	private intervalId: number | null = null;
 	private syncing = false;
 	private consecutiveFailures = 0;
 	private baseIntervalSec = 60;
 	private lastManualSyncAt = 0;
+	private archiveScanner: ArchiveScanner | null = null;
+	private onServerReachable: OnServerReachable | null = null;
 
 	constructor(
 		private client: ArchivistApiClient,
 		private writer: NoteWriter,
 		private registerInterval: (id: number) => void
 	) {}
+
+	/**
+	 * Set archive scanner for reconciliation during sync.
+	 * When set, each sync cycle will also reconcile archived notes with the server.
+	 */
+	setArchiveScanner(scanner: ArchiveScanner): void {
+		this.archiveScanner = scanner;
+	}
+
+	/**
+	 * Set callback invoked when server becomes reachable after failures.
+	 * Used to re-initialize config sync after offline → online transition.
+	 */
+	setOnServerReachable(callback: OnServerReachable): void {
+		this.onServerReachable = callback;
+	}
 
 	/**
 	 * Start periodic sync.
@@ -104,8 +129,9 @@ export class SyncEngine {
 			const notes = response.notes;
 
 			if (notes.length === 0) {
-				// Success — reset backoff
+				// Success — reset backoff, notify listener
 				this.consecutiveFailures = 0;
+				this.onServerReachable?.();
 				return 0;
 			}
 
@@ -113,9 +139,13 @@ export class SyncEngine {
 			const syncedIds: string[] = [];
 			const vaultPaths: Record<string, string> = {};
 
+			// Build sibling map for smart-split notes (same source_batch_id)
+			const batchSiblings = buildBatchSiblings(notes);
+
 			for (const note of notes) {
 				try {
-					const path = await this.writer.write(note);
+					const siblings = batchSiblings.get(note.id);
+					const path = await this.writer.write(note, siblings);
 					if (path) {
 						written.push(path);
 						vaultPaths[note.id] = path;
@@ -140,8 +170,12 @@ export class SyncEngine {
 				new Notice(`Archivistbot: synced ${written.length} note(s)`);
 			}
 
-			// Success — reset backoff
+			// Reconcile archived notes with server (removes from digest inbox)
+			await this.reconcileArchived();
+
+			// Success — reset backoff, notify listener
 			this.consecutiveFailures = 0;
+			this.onServerReachable?.();
 			return written.length;
 		} catch (e) {
 			if (e instanceof RefreshTokenExpiredError) {
@@ -158,6 +192,27 @@ export class SyncEngine {
 			throw e;
 		} finally {
 			this.syncing = false;
+		}
+	}
+
+	/**
+	 * Reconcile archived notes with server.
+	 * Scans _archive/ folder and tells server which vault_paths are archived,
+	 * so they can be removed from digest inbox.
+	 */
+	private async reconcileArchived(): Promise<void> {
+		if (!this.archiveScanner) {
+			return;
+		}
+
+		try {
+			const archivedPaths = await this.archiveScanner();
+			if (archivedPaths.length > 0) {
+				await this.client.reconcileArchived(archivedPaths);
+			}
+		} catch (e) {
+			// Non-critical — log and continue, don't break sync
+			console.error("[ArchivistBot] archive reconciliation failed:", e);
 		}
 	}
 
@@ -189,4 +244,39 @@ export class SyncEngine {
 			throw e;
 		}
 	}
+}
+
+/**
+ * Build a map: note.id → sibling note names (excluding self).
+ *
+ * Groups notes by `source_batch_id`. Notes without a batch ID get no siblings.
+ * Used to generate wikilink cross-references between smart-split notes.
+ */
+export function buildBatchSiblings(notes: NoteResponse[]): Map<string, string[]> {
+	const result = new Map<string, string[]>();
+
+	// Group by source_batch_id
+	const batches = new Map<string, NoteResponse[]>();
+	for (const note of notes) {
+		if (!note.source_batch_id) continue;
+		const group = batches.get(note.source_batch_id);
+		if (group) {
+			group.push(note);
+		} else {
+			batches.set(note.source_batch_id, [note]);
+		}
+	}
+
+	// Build sibling lists (excluding self, only for batches with 2+ notes)
+	for (const group of batches.values()) {
+		if (group.length < 2) continue;
+		for (const note of group) {
+			result.set(
+				note.id,
+				group.filter((n) => n.id !== note.id).map((n) => n.name),
+			);
+		}
+	}
+
+	return result;
 }

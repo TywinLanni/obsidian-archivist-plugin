@@ -1,6 +1,7 @@
 // src/settings.ts
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type ArchivistBotPlugin from "./main";
+import type { ReminderSettings } from "./types";
 
 export interface ArchivistBotSettings {
 	endpoint: string;
@@ -145,6 +146,129 @@ export class ArchivistBotSettingTab extends PluginSettingTab {
 					}
 				})
 			);
+
+		// ── Digest Reminders (server-side settings) ──
+		if (this.plugin.settings.accessToken) {
+			this.renderReminderSettings(containerEl);
+		}
+	}
+
+	/**
+	 * Render digest reminder settings section.
+	 * Loads current values from server, saves changes via PATCH.
+	 */
+	private renderReminderSettings(containerEl: HTMLElement): void {
+		new Setting(containerEl).setName("Digest reminders").setHeading();
+
+		const loadingEl = containerEl.createDiv({ text: "Loading reminder settings..." });
+
+		// Load settings from server asynchronously
+		void this.plugin.getUserSettings().then(async (response) => {
+			loadingEl.remove();
+
+			const reminders: ReminderSettings = response.reminders ?? {
+				enabled: true,
+				send_time: 9,
+				timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+				weekly_day: "monday",
+				monthly_day: 1,
+			};
+
+			// If server had no reminder settings, push device defaults (incl. timezone)
+			if (response.reminders == null) {
+				try {
+					await this.plugin.updateUserSettings({ reminders });
+				} catch (e) {
+					console.error("[ArchivistBot] Failed to push default reminder settings:", e);
+				}
+			}
+
+			// Helper to save a partial update
+			const saveReminder = async (patch: Partial<ReminderSettings>): Promise<void> => {
+				try {
+					await this.plugin.updateUserSettings({ reminders: { ...reminders, ...patch } as ReminderSettings });
+					Object.assign(reminders, patch);
+				} catch (e) {
+					new Notice(`Failed to save reminder settings: ${String(e)}`);
+				}
+			};
+
+			new Setting(containerEl)
+				.setName("Enable digest reminders")
+				.setDesc("Receive periodic summaries of unarchived notes in Telegram")
+				.addToggle((toggle) =>
+					toggle.setValue(reminders.enabled).onChange(async (value) => {
+						await saveReminder({ enabled: value });
+					})
+				);
+
+			new Setting(containerEl)
+				.setName("Send time")
+				.setDesc("Hour of day to receive digests (0-23)")
+				.addDropdown((dropdown) => {
+					for (let h = 0; h < 24; h++) {
+						const label = `${h.toString().padStart(2, "0")}:00`;
+						dropdown.addOption(String(h), label);
+					}
+					dropdown.setValue(String(reminders.send_time));
+					dropdown.onChange(async (value) => {
+						await saveReminder({ send_time: parseInt(value) });
+					});
+				});
+
+			new Setting(containerEl)
+				.setName("Timezone")
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- IANA is a proper noun
+			.setDesc("IANA timezone for digest scheduling")
+			.addText((text) =>
+				text
+					// eslint-disable-next-line obsidianmd/ui/sentence-case -- timezone identifier, not UI text
+					.setPlaceholder("Europe/Amsterdam")
+						.setValue(reminders.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
+						.onChange(async (value) => {
+							await saveReminder({ timezone: value || null });
+						})
+				);
+
+			const weekDays: { value: ReminderSettings["weekly_day"]; label: string }[] = [
+				{ value: "monday", label: "Monday" },
+				{ value: "tuesday", label: "Tuesday" },
+				{ value: "wednesday", label: "Wednesday" },
+				{ value: "thursday", label: "Thursday" },
+				{ value: "friday", label: "Friday" },
+				{ value: "saturday", label: "Saturday" },
+				{ value: "sunday", label: "Sunday" },
+			];
+
+			new Setting(containerEl)
+				.setName("Weekly digest day")
+				.setDesc("Day of week for weekly reminders")
+				.addDropdown((dropdown) => {
+					for (const { value, label } of weekDays) {
+						dropdown.addOption(value, label);
+					}
+					dropdown.setValue(reminders.weekly_day);
+					dropdown.onChange(async (value) => {
+						await saveReminder({ weekly_day: value as ReminderSettings["weekly_day"] });
+					});
+				});
+
+			new Setting(containerEl)
+				.setName("Monthly digest day")
+				.setDesc("Day of month for monthly reminders (1-28)")
+				.addSlider((slider) =>
+					slider
+						.setLimits(1, 28, 1)
+						.setValue(reminders.monthly_day)
+						.setDynamicTooltip()
+						.onChange(async (value) => {
+							await saveReminder({ monthly_day: value });
+						})
+				);
+		}).catch((e) => {
+			loadingEl.setText("Failed to load reminder settings");
+			console.error("[ArchivistBot] Failed to load reminder settings:", e);
+		});
 	}
 
 	/**

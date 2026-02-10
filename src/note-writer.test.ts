@@ -239,6 +239,131 @@ describe("NoteWriter", () => {
 		});
 	});
 
+	describe("action items", () => {
+		it("includes action_items in frontmatter when present", async () => {
+			const { app, writer } = createWriter();
+			const note = makeNote({
+				action_items: ["Позвонить клиенту", "Отправить счёт"],
+			});
+
+			await writer.write(note);
+			const content = (app.vault as any)._getFile(`VoiceNotes/work/Test Note${TS}.md`) as string;
+
+			const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+			const fm = parseYaml(fmMatch![1]) as Record<string, unknown>;
+			expect(fm.action_items).toEqual(["Позвонить клиенту", "Отправить счёт"]);
+		});
+
+		it("renders action items as checkboxes in body", async () => {
+			const { app, writer } = createWriter();
+			const note = makeNote({
+				action_items: ["Позвонить клиенту", "Отправить счёт"],
+			});
+
+			await writer.write(note);
+			const content = (app.vault as any)._getFile(`VoiceNotes/work/Test Note${TS}.md`) as string;
+
+			expect(content).toContain("## Задачи");
+			expect(content).toContain("- [ ] Позвонить клиенту");
+			expect(content).toContain("- [ ] Отправить счёт");
+		});
+
+		it("omits action_items from frontmatter and body when empty", async () => {
+			const { app, writer } = createWriter();
+			const note = makeNote({ action_items: [] });
+
+			await writer.write(note);
+			const content = (app.vault as any)._getFile(`VoiceNotes/work/Test Note${TS}.md`) as string;
+
+			const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+			const fm = parseYaml(fmMatch![1]) as Record<string, unknown>;
+			expect(fm.action_items).toBeUndefined();
+			expect(content).not.toContain("## Задачи");
+		});
+
+		it("omits action_items when field is undefined (old API)", async () => {
+			const { app, writer } = createWriter();
+			const note = makeNote(); // no action_items field
+
+			await writer.write(note);
+			const content = (app.vault as any)._getFile(`VoiceNotes/work/Test Note${TS}.md`) as string;
+
+			const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+			const fm = parseYaml(fmMatch![1]) as Record<string, unknown>;
+			expect(fm.action_items).toBeUndefined();
+			expect(content).not.toContain("## Задачи");
+		});
+	});
+
+	describe("smart split (sibling wikilinks)", () => {
+		it("adds wikilinks to sibling notes when siblingNames provided", async () => {
+			const { app, writer } = createWriter();
+			const note = makeNote({
+				source_batch_id: "20260209_120000_abcd",
+			});
+
+			await writer.write(note, ["Покупки в магазине", "Задачи на неделю"]);
+			const content = (app.vault as any)._getFile(`VoiceNotes/work/Test Note${TS}.md`) as string;
+
+			expect(content).toContain("**Связанные заметки:**");
+			expect(content).toContain("- [[Покупки в магазине]]");
+			expect(content).toContain("- [[Задачи на неделю]]");
+		});
+
+		it("includes source_batch_id in frontmatter when present", async () => {
+			const { app, writer } = createWriter();
+			const note = makeNote({
+				source_batch_id: "20260209_120000_abcd",
+			});
+
+			await writer.write(note, ["Sibling Note"]);
+			const content = (app.vault as any)._getFile(`VoiceNotes/work/Test Note${TS}.md`) as string;
+
+			const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+			const fm = parseYaml(fmMatch![1]) as Record<string, unknown>;
+			expect(fm.source_batch_id).toBe("20260209_120000_abcd");
+		});
+
+		it("omits sibling section when no siblingNames", async () => {
+			const { app, writer } = createWriter();
+			const note = makeNote();
+
+			await writer.write(note);
+			const content = (app.vault as any)._getFile(`VoiceNotes/work/Test Note${TS}.md`) as string;
+
+			expect(content).not.toContain("Связанные заметки");
+		});
+
+		it("omits sibling section when siblingNames is empty", async () => {
+			const { app, writer } = createWriter();
+			const note = makeNote();
+
+			await writer.write(note, []);
+			const content = (app.vault as any)._getFile(`VoiceNotes/work/Test Note${TS}.md`) as string;
+
+			expect(content).not.toContain("Связанные заметки");
+		});
+
+		it("combines action items and sibling wikilinks", async () => {
+			const { app, writer } = createWriter();
+			const note = makeNote({
+				action_items: ["Купить молоко"],
+				source_batch_id: "20260209_120000_abcd",
+			});
+
+			await writer.write(note, ["Рабочие задачи"]);
+			const content = (app.vault as any)._getFile(`VoiceNotes/work/Test Note${TS}.md`) as string;
+
+			// Both sections present in correct order
+			const tasksIdx = content.indexOf("## Задачи");
+			const linksIdx = content.indexOf("**Связанные заметки:**");
+			expect(tasksIdx).toBeGreaterThan(-1);
+			expect(linksIdx).toBeGreaterThan(tasksIdx);
+			expect(content).toContain("- [ ] Купить молоко");
+			expect(content).toContain("- [[Рабочие задачи]]");
+		});
+	});
+
 	describe("filename sanitization", () => {
 		it("replaces illegal characters with underscore", async () => {
 			const { writer } = createWriter();

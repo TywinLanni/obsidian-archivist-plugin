@@ -26,20 +26,23 @@ export class NoteWriter {
 	 * When `note.append_to` is set, appends content to the referenced file.
 	 * Otherwise creates a new file with a datetime-stamped filename.
 	 *
+	 * @param note The note to write
+	 * @param siblingNames Names of sibling notes (from the same smart-split batch)
+	 *   for wikilink cross-references. Excludes the current note's own name.
 	 * @returns Vault file path (new or appended), null if dedup skipped
 	 */
-	async write(note: NoteResponse): Promise<string | null> {
+	async write(note: NoteResponse, siblingNames?: string[]): Promise<string | null> {
 		if (note.append_to) {
 			return this.appendToExisting(note);
 		}
-		return this.createNew(note);
+		return this.createNew(note, siblingNames);
 	}
 
 	/**
 	 * Create a new note file with datetime-stamped filename.
 	 * Format: {sanitized_name}_{YYYYMMDD_HHmmss}.md
 	 */
-	private async createNew(note: NoteResponse): Promise<string | null> {
+	private async createNew(note: NoteResponse, siblingNames?: string[]): Promise<string | null> {
 		const dir = normalizePath(`${this.basePath}/${note.category}`);
 		await this.ensureFolder(dir);
 
@@ -52,7 +55,7 @@ export class NoteWriter {
 			return null;
 		}
 
-		const markdown = this.generateMarkdown(note);
+		const markdown = this.generateMarkdown(note, siblingNames);
 		await this.vault.create(filePath, markdown);
 		return filePath;
 	}
@@ -129,8 +132,11 @@ export class NoteWriter {
 
 	/**
 	 * Generate markdown content with YAML frontmatter.
+	 *
+	 * @param note The note data
+	 * @param siblingNames Names of sibling notes for wikilink cross-references
 	 */
-	private generateMarkdown(note: NoteResponse): string {
+	private generateMarkdown(note: NoteResponse, siblingNames?: string[]): string {
 		const frontmatter: Record<string, unknown> = {
 			category: note.category,
 			tags: note.tags,
@@ -143,6 +149,16 @@ export class NoteWriter {
 			frontmatter.synced = note.synced_at;
 		}
 
+		const actionItems = note.action_items ?? [];
+
+		if (actionItems.length > 0) {
+			frontmatter.action_items = actionItems;
+		}
+
+		if (note.source_batch_id) {
+			frontmatter.source_batch_id = note.source_batch_id;
+		}
+
 		const yaml = stringifyYaml(frontmatter).trimEnd();
 		const parts: string[] = [`---\n${yaml}\n---`, ""];
 
@@ -152,6 +168,22 @@ export class NoteWriter {
 		}
 
 		parts.push(note.content);
+
+		// Add action items as checkboxes
+		if (actionItems.length > 0) {
+			parts.push("", "## Задачи", "");
+			for (const item of actionItems) {
+				parts.push(`- [ ] ${item}`);
+			}
+		}
+
+		// Add wikilinks to sibling notes (smart split)
+		if (siblingNames && siblingNames.length > 0) {
+			parts.push("", "---", "", "**Связанные заметки:**");
+			for (const name of siblingNames) {
+				parts.push(`- [[${name}]]`);
+			}
+		}
 
 		return parts.join("\n");
 	}
