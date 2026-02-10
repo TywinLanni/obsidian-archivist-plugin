@@ -348,6 +348,11 @@ export interface components {
              * @enum {string}
              */
             reminder: "off" | "daily" | "weekly" | "monthly";
+            /**
+             * @description Calendar provider for automatic event creation (e.g., "google"). Null = no calendar integration.
+             * @default null
+             */
+            calendar: string | null;
         };
         CategoriesResponse: {
             categories: components["schemas"]["CategoryItem"][];

@@ -109,6 +109,11 @@ export class CategoriesManager {
 	private static readonly VALID_REMINDERS = new Set(["off", "daily", "weekly", "monthly"]);
 
 	/**
+	 * Valid calendar provider values for type-safe parsing.
+	 */
+	private static readonly VALID_CALENDARS = new Set(["google"]);
+
+	/**
 	 * Parse markdown table into CategoryItem array.
 	 * Supports both 2-column (name, description) and 3-column (name, description, reminder) tables.
 	 */
@@ -128,15 +133,19 @@ export class CategoriesManager {
 			}
 
 			const parts = trimmed.split("|").map((p) => p.trim());
-			// parts[0] is empty (before first |), parts[1] is name, parts[2] is description, parts[3] is reminder
+			// parts[0] is empty (before first |), parts[1] is name, parts[2] is description, parts[3] is reminder, parts[4] is calendar
 			if (parts.length >= 3 && parts[1]) {
 				const cat: CategoryItem = {
 					name: parts[1],
 					description: parts[2] || "",
 				};
-				// 3-column table: parse reminder if present and valid
+				// 3+ column table: parse reminder if present and valid
 				if (parts.length >= 4 && parts[3] && CategoriesManager.VALID_REMINDERS.has(parts[3])) {
 					cat.reminder = parts[3] as CategoryItem["reminder"];
+				}
+				// 4+ column table: parse calendar if present and valid
+				if (parts.length >= 5 && parts[4] && CategoriesManager.VALID_CALENDARS.has(parts[4])) {
+					cat.calendar = parts[4];
 				}
 				categories.push(cat);
 			}
@@ -150,13 +159,14 @@ export class CategoriesManager {
 	 */
 	private formatAsMarkdown(categories: CategoryItem[]): string {
 		const lines = [
-			"| Category | Description | Reminder |",
-			"|----------|-------------|----------|",
+			"| Category | Description | Reminder | Calendar |",
+			"|----------|-------------|----------|----------|",
 		];
 
 		for (const cat of categories) {
 			const reminder = cat.reminder || "weekly";
-			lines.push(`| ${cat.name} | ${cat.description} | ${reminder} |`);
+			const calendar = cat.calendar || "";
+			lines.push(`| ${cat.name} | ${cat.description} | ${reminder} | ${calendar} |`);
 		}
 
 		return lines.join("\n") + "\n";

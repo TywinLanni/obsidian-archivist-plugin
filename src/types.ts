@@ -14,8 +14,9 @@ export type SyncResponse = components["schemas"]["SyncResponse"];
 export type MarkSyncedRequest = components["schemas"]["MarkSyncedRequest"];
 export type MarkSyncedResponse = components["schemas"]["MarkSyncedResponse"];
 // CategoryItem: make `reminder` optional for backward compat with 2-column categories.md
-export type CategoryItem = Omit<components["schemas"]["CategoryItem"], "reminder"> & {
+export type CategoryItem = Omit<components["schemas"]["CategoryItem"], "reminder" | "calendar"> & {
 	reminder?: components["schemas"]["CategoryItem"]["reminder"];
+	calendar?: string | null;
 };
 export type CategoriesResponse = components["schemas"]["CategoriesResponse"];
 export type CategoriesUpdateRequest = components["schemas"]["CategoriesUpdateRequest"];
