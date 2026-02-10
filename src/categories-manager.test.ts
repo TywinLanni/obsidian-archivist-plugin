@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { Vault } from "obsidian";
+import { describe, it, expect, beforeEach } from "vitest";
+import { Vault, Notice } from "obsidian";
 import { CategoriesManager } from "./categories-manager";
 
 function createManager(): { vault: Vault; manager: CategoriesManager } {
@@ -251,6 +251,98 @@ describe("CategoriesManager", () => {
 			manager.setBasePath("NewPath");
 
 			expect(manager.getFilePath()).toBe("NewPath/categories.md");
+		});
+	});
+
+	describe("invalid value notices", () => {
+		beforeEach(() => {
+			Notice.calls = [];
+		});
+
+		it("shows notice for invalid reminder value", async () => {
+			const { vault, manager } = createManager();
+			const content = [
+				"| Category | Description | Reminder |",
+				"|----------|-------------|----------|",
+				"| work | Work stuff | banana |",
+				"| personal | Personal notes | daily |",
+				"",
+			].join("\n");
+			(vault as any)._addFile("VoiceNotes/categories.md", content);
+
+			await manager.read();
+
+			expect(Notice.calls).toHaveLength(1);
+			expect(Notice.calls[0]).toContain("Invalid reminder");
+			expect(Notice.calls[0]).toContain("banana");
+			expect(Notice.calls[0]).toContain("work");
+		});
+
+		it("shows notice for invalid calendar value", async () => {
+			const { vault, manager } = createManager();
+			const content = [
+				"| Category | Description | Reminder | Calendar |",
+				"|----------|-------------|----------|----------|",
+				"| work | Work stuff | daily | outlook |",
+				"| personal | Personal notes | weekly | google |",
+				"",
+			].join("\n");
+			(vault as any)._addFile("VoiceNotes/categories.md", content);
+
+			await manager.read();
+
+			expect(Notice.calls).toHaveLength(1);
+			expect(Notice.calls[0]).toContain("Invalid calendar");
+			expect(Notice.calls[0]).toContain("outlook");
+			expect(Notice.calls[0]).toContain("work");
+		});
+
+		it("shows notices for both invalid reminder and calendar", async () => {
+			const { vault, manager } = createManager();
+			const content = [
+				"| Category | Description | Reminder | Calendar |",
+				"|----------|-------------|----------|----------|",
+				"| work | Work stuff | banana | outlook |",
+				"",
+			].join("\n");
+			(vault as any)._addFile("VoiceNotes/categories.md", content);
+
+			await manager.read();
+
+			expect(Notice.calls).toHaveLength(2);
+			expect(Notice.calls[0]).toContain("Invalid reminder");
+			expect(Notice.calls[1]).toContain("Invalid calendar");
+		});
+
+		it("does not show notice for valid values", async () => {
+			const { vault, manager } = createManager();
+			const content = [
+				"| Category | Description | Reminder | Calendar |",
+				"|----------|-------------|----------|----------|",
+				"| work | Work stuff | daily | google |",
+				"| personal | Personal notes | weekly |  |",
+				"",
+			].join("\n");
+			(vault as any)._addFile("VoiceNotes/categories.md", content);
+
+			await manager.read();
+
+			expect(Notice.calls).toHaveLength(0);
+		});
+
+		it("does not show notice for empty values", async () => {
+			const { vault, manager } = createManager();
+			const content = [
+				"| Category | Description | Reminder | Calendar |",
+				"|----------|-------------|----------|----------|",
+				"| work | Work stuff |  |  |",
+				"",
+			].join("\n");
+			(vault as any)._addFile("VoiceNotes/categories.md", content);
+
+			await manager.read();
+
+			expect(Notice.calls).toHaveLength(0);
 		});
 	});
 });

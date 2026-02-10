@@ -19,10 +19,13 @@ export function normalizePath(path: string): string {
 	return path.replace(/\\/g, "/").replace(/\/+/g, "/");
 }
 
-// ── Notice (no-op in tests) ──
+// ── Notice (trackable in tests) ──
 
 export class Notice {
-	constructor(_message: string, _timeout?: number) {}
+	static calls: string[] = [];
+	constructor(message: string, _timeout?: number) {
+		Notice.calls.push(message);
+	}
 }
 
 // ── File system types ──

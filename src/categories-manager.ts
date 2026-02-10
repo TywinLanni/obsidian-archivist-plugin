@@ -1,5 +1,5 @@
 // src/categories-manager.ts
-import { Vault, TFile, normalizePath } from "obsidian";
+import { Vault, TFile, normalizePath, Notice } from "obsidian";
 import type { CategoryItem } from "./types";
 
 const CATEGORIES_FILENAME = "categories.md";
@@ -140,12 +140,20 @@ export class CategoriesManager {
 					description: parts[2] || "",
 				};
 				// 3+ column table: parse reminder if present and valid
-				if (parts.length >= 4 && parts[3] && CategoriesManager.VALID_REMINDERS.has(parts[3])) {
-					cat.reminder = parts[3] as CategoryItem["reminder"];
+				if (parts.length >= 4 && parts[3]) {
+					if (CategoriesManager.VALID_REMINDERS.has(parts[3])) {
+						cat.reminder = parts[3] as CategoryItem["reminder"];
+					} else {
+						new Notice(`⚠️ Invalid reminder "${parts[3]}" for category "${parts[1]}" — ignored`);
+					}
 				}
 				// 4+ column table: parse calendar if present and valid
-				if (parts.length >= 5 && parts[4] && CategoriesManager.VALID_CALENDARS.has(parts[4])) {
-					cat.calendar = parts[4];
+				if (parts.length >= 5 && parts[4]) {
+					if (CategoriesManager.VALID_CALENDARS.has(parts[4])) {
+						cat.calendar = parts[4];
+					} else {
+						new Notice(`⚠️ Invalid calendar "${parts[4]}" for category "${parts[1]}" — ignored`);
+					}
 				}
 				categories.push(cat);
 			}
