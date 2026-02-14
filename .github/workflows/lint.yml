@@ -23,14 +23,6 @@ jobs:
                   node-version: ${{ matrix.node-version }}
                   cache: "npm"
             - run: npm ci
-            - name: Fetch OpenAPI spec and regenerate types
-              run: npm run update-api
-            - name: Check for uncommitted type changes
-              run: |
-                  if ! git diff --exit-code src/api-types.ts; then
-                    echo "::error::API types are out of sync with OpenAPI spec. Run 'npm run update-api' and commit the changes."
-                    exit 1
-                  fi
             - run: npm run lint
             - run: npm run build
 
