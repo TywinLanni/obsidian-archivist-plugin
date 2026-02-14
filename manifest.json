@@ -3,7 +3,7 @@
 	"name": "ArchivistBot",
 	"version": "0.1.0",
 	"minAppVersion": "1.5.0",
-	"description": "Sync voice notes from ArchivistBot to your vault with auto-categorization",
+	"description": "Sync voice notes from ArchivistBot to your vault with auto-categorization.",
 	"author": "TywinLanni",
 	"authorUrl": "https://github.com/TywinLanni",
 	"isDesktopOnly": false
