@@ -10,6 +10,7 @@ import { NoteWriter } from "./note-writer";
 import { SyncEngine } from "./sync-engine";
 import { NoteArchiver } from "./archiver";
 import { ConfigSync } from "./config-sync";
+import type { ReminderSettings } from "./types";
 
 export default class ArchivistBotPlugin extends Plugin {
 	settings: ArchivistBotSettings = DEFAULT_SETTINGS;
@@ -248,6 +249,9 @@ export default class ArchivistBotPlugin extends Plugin {
 			return;
 		}
 
+		// Push default settings (timezone, reminders) if server has none
+		await this.ensureServerDefaults();
+
 		// Re-initialize config (categories + tags sync with server)
 		await this.configSync.initialize();
 
@@ -255,6 +259,30 @@ export default class ArchivistBotPlugin extends Plugin {
 		if (this.settings.autoSync) {
 			this.stopSync();
 			this.startSync();
+		}
+	}
+
+	/**
+	 * Ensure the server has user settings (timezone, reminders).
+	 * If the server has no reminder settings yet, push device defaults
+	 * including the local timezone from the OS.
+	 */
+	private async ensureServerDefaults(): Promise<void> {
+		try {
+			const response = await this.client.getUserSettings();
+			if (response.reminders == null) {
+				const defaults: ReminderSettings = {
+					enabled: true,
+					send_time: 9,
+					timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+					weekly_day: "monday",
+					monthly_day: 1,
+				};
+				await this.client.updateUserSettings({ reminders: defaults });
+			}
+		} catch (e) {
+			// Non-critical — settings can be configured later
+			console.warn("[ArchivistBot] Failed to push default settings:", e);
 		}
 	}
 
