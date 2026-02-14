@@ -5,18 +5,10 @@ import type { CategoryItem } from "./types";
 const CATEGORIES_FILENAME = "categories.md";
 
 const DEFAULT_CATEGORIES: CategoryItem[] = [
-	{ name: "work", description: "Рабочие задачи (общее)", reminder: "daily" },
-	{ name: "work/meetings", description: "Встречи, созвоны, митинги", reminder: "daily" },
-	{ name: "work/tasks", description: "Текущие рабочие задачи", reminder: "daily" },
-	{ name: "ideas", description: "Идеи, мысли, концепции", reminder: "weekly" },
-	{ name: "personal", description: "Личные заметки, дневник", reminder: "weekly" },
-	{ name: "projects", description: "Проекты вне работы (общее)", reminder: "weekly" },
-	{ name: "projects/coding", description: "Программирование, пет-проекты", reminder: "weekly" },
-	{ name: "projects/hobby", description: "Хобби-проекты", reminder: "monthly" },
-	{ name: "health", description: "Здоровье, спорт, питание", reminder: "weekly" },
-	{ name: "learning", description: "Обучение, книги, курсы", reminder: "weekly" },
-	{ name: "creative", description: "Творчество, музыка, искусство", reminder: "monthly" },
-	{ name: "finance", description: "Финансы, бюджет, инвестиции", reminder: "monthly" },
+	{ name: "work", description: "Рабочие задачи", reminder: "daily", calendar: "google" },
+	{ name: "personal", description: "Личные дела", reminder: "weekly" },
+	{ name: "ideas", description: "Идеи и мысли", reminder: "monthly" },
+	{ name: "health", description: "Здоровье, спорт", reminder: "weekly" },
 ];
 
 /**
@@ -181,6 +173,21 @@ export class CategoriesManager {
 			const calendar = cat.calendar || "";
 			lines.push(`| ${cat.name} | ${cat.description} | ${reminder} | ${calendar} |`);
 		}
+
+		lines.push("");
+		lines.push("---");
+		lines.push("");
+		lines.push("**Reminder** — как часто получать дайджест непрочитанных заметок в Telegram:");
+		lines.push("- `off` — не напоминать");
+		lines.push("- `daily` — каждый день");
+		lines.push("- `weekly` — раз в неделю");
+		lines.push("- `monthly` — раз в месяц");
+		lines.push("");
+		lines.push("**Calendar** — автоматически создавать событие, если в заметке есть дата/время:");
+		lines.push("- *(пусто)* — не создавать");
+		lines.push("- `google` — Google Calendar");
+		lines.push("");
+		lines.push("Подкатегории: `work/meetings`, `projects/coding` и т.д. — добавляйте когда появится реальная потребность.");
 
 		return lines.join("\n") + "\n";
 	}
