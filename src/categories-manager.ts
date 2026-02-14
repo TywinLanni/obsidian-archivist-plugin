@@ -113,13 +113,19 @@ export class CategoriesManager {
 		const categories: CategoryItem[] = [];
 		const lines = content.split("\n");
 
+		// Detect number of columns from the header row
+		let headerColumnCount = 0;
+
 		for (const line of lines) {
 			const trimmed = line.trim();
-			// Skip non-table and header lines
-			if (
-				!trimmed.startsWith("|") ||
-				trimmed.startsWith("| Category")
-			) {
+			// Skip non-table lines
+			if (!trimmed.startsWith("|")) {
+				continue;
+			}
+
+			// Detect header line to count columns
+			if (trimmed.startsWith("| Category")) {
+				headerColumnCount = trimmed.split("|").map((p) => p.trim()).filter((p, i, arr) => i > 0 && i < arr.length - 1).length;
 				continue;
 			}
 
@@ -136,16 +142,18 @@ export class CategoriesManager {
 					name: parts[1],
 					description: parts[2] || "",
 				};
-				// 3+ column table: parse reminder if present and valid
-				if (parts.length >= 4 && parts[3]) {
-					if (CategoriesManager.VALID_REMINDERS.has(parts[3])) {
+				// Only parse reminder if header has 3+ columns (Reminder column exists)
+				if (headerColumnCount >= 3 && parts.length >= 4) {
+					if (!parts[3]) {
+						cat.reminder = "off";
+					} else if (CategoriesManager.VALID_REMINDERS.has(parts[3])) {
 						cat.reminder = parts[3] as CategoryItem["reminder"];
 					} else {
 						new Notice(`⚠️ Invalid reminder "${parts[3]}" for category "${parts[1]}" — ignored`);
 					}
 				}
-				// 4+ column table: parse calendar if present and valid
-				if (parts.length >= 5 && parts[4]) {
+				// Only parse calendar if header has 4+ columns (Calendar column exists)
+				if (headerColumnCount >= 4 && parts.length >= 5 && parts[4]) {
 					if (CategoriesManager.VALID_CALENDARS.has(parts[4])) {
 						cat.calendar = parts[4];
 					} else {
@@ -169,16 +177,17 @@ export class CategoriesManager {
 		];
 
 		for (const cat of categories) {
-			const reminder = cat.reminder || "weekly";
+			const reminder = cat.reminder ?? "weekly";
 			const calendar = cat.calendar || "";
-			lines.push(`| ${cat.name} | ${cat.description} | ${reminder} | ${calendar} |`);
+			const reminderCell = reminder === "off" ? "" : reminder;
+			lines.push(`| ${cat.name} | ${cat.description} | ${reminderCell} | ${calendar} |`);
 		}
 
 		lines.push("");
 		lines.push("---");
 		lines.push("");
 		lines.push("**Reminder** — как часто получать дайджест непрочитанных заметок в Telegram:");
-		lines.push("- `off` — не напоминать");
+		lines.push("- *(пусто)* или `off` — не напоминать");
 		lines.push("- `daily` — каждый день");
 		lines.push("- `weekly` — раз в неделю");
 		lines.push("- `monthly` — раз в месяц");
